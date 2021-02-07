@@ -51,10 +51,12 @@ int main(int argc, const char * argv[])
     aSeed[1] = atoi(argv[12]);       //Seed in y-direction for MC
     aSeed[2] = atoi(argv[13]);       //Seed in z-direction for MC
     delta    = atof(argv[14]);
-    FILE* dataFile = fopen(argv[15], "w");
-//    FILE* pointsfile = fopen(argv[15], "w");
+    
+    /* These two files can be used to print out either points (surface or volume) or to get data i.e. volume and SA for different values of n_points using the for loop in n_points at the end */
+//    FILE* dataFile = fopen(argv[15], "w");
+    FILE* pointsfile = fopen(argv[15], "w");
 
-//    printf("Number of points = %d\n", n_points);
+
     printf("delta= %10.4f\n", delta);
     
     double box_xy_dim = std::max({R1, Rc, R2});
@@ -130,13 +132,12 @@ int main(int argc, const char * argv[])
         MC mc_engine (n_points, box, aSeed);
         printf("i=%d\t box_volume = %10.5f\n", i, mc_engine.box_volume());
         std::vector<double> measures = mc_engine.calc_volume_SA(shape_ptr, delta);
-        //mc_engine.print_surf_points(pointsfile);
+        mc_engine.print_volume_points(pointsfile);
         double volume = measures[0];
         double SA = measures[1];
         printf("Hourglass volume = %10.15f\t Surface Area = %10.15f\n", volume, SA);
-        fprintf(dataFile, "%d\t%10.10f\t%10.10f\n", i, volume, SA);
+        //fprintf(dataFile, "%d\t%10.10f\t%10.10f\n", i, volume, SA);
     }
-    
     
     return 0;
 }

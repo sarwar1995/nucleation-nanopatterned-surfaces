@@ -44,13 +44,7 @@ double free_energy (double volume, double SA, std::vector<double>& projected_SA,
     
 }
 
-//double calcCompCluster (Spherical_cap& GoodCap, Stripes& stripes, MC& mc_engine, std::vector<double> c_bad_left, std::vector<double> c_bad_right, double projected_rb, double theta_cb, double z_surface)
-//{
-//
-//}
-
-
-//Needs two dynamically allocated arrays (vectors?) of indices or position of points that lie inside the cluster and near the surface.
+/* In testing of hourglass, it was found that delta = 0.05 works to give better surface area for a radii length scale of a a few units i.e. r=3 or 4. */
 
 int main(int argc, const char * argv[]) {
     
@@ -66,7 +60,7 @@ int main(int argc, const char * argv[]) {
 //    int Nmin, Nmax;
 //    double dN;
     
-    /* Monte-Carlo related variables */
+    /* Monte-  Carlo related variables */
     int n_points;
     int aSeed[3];
     double delta;
@@ -78,7 +72,8 @@ int main(int argc, const char * argv[]) {
 //    FILE* outputfile;
     FILE* outputfile_spreadout;
     FILE* outputfile_not_spreadout;
-    FILE* pointsFile;
+//    FILE* pointsFile_1;
+//    FILE* pointsFile_2;
     
     /* Reading all variables from command line */
     p_width_x  = atof(argv[1]);     //x width of the patches (same for all)
@@ -105,18 +100,22 @@ int main(int argc, const char * argv[]) {
     
     std::string outFileName_spreadout = tag + "-spreadout.txt";
     std::string outFileName_not_spreadout = tag + "-not_spreadout.txt";
-    std::string outFileName_nearsurf_points = tag + "near_surf_points.txt";
+    
+//    std::string outFileName_nearsurf_points_1 = tag + "near_surf_points_1.txt";
+//    std::string outFileName_nearsurf_points_2 = tag + "near_surf_points_2.txt";
+
     std::cout<<"outFileName_spreadout = "<<outFileName_spreadout<<std::endl;
     std::cout<<"outFileName_not_spreadout = "<<outFileName_not_spreadout<<std::endl;
     outputfile_spreadout = fopen (outFileName_spreadout.c_str(),"w"); // Output file for the centres of bad patches that are on the bad patch
     outputfile_not_spreadout = fopen (outFileName_not_spreadout.c_str(),"w"); // Output file for the centres of bad patches that are on the good patch
-    pointsFile = fopen(outFileName_nearsurf_points.c_str(), "w");
+//    pointsFile_1 = fopen(outFileName_nearsurf_points_1.c_str(), "w");
+//    pointsFile_2 = fopen(outFileName_nearsurf_points_2.c_str(), "w");
     
     printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
     printf("Rg_max, Rb_max = %10.5f %10.5f\n",Rg_max, Rb_max);
     printf("delta=%10.5f\n",delta);
     int len_Rg = (int) ((Rg_max-0.0)/d_Rg) + 1; //This 1 is added because for loop is i<len_Rg
-    int len_Rb; //Calculated seperately for each Rg. Rb's are symmetric for the 2 patches
+    int len_Rb; //Calculated seperately for each Rg. Rb's are symmetric around the central patch.
     
     /* Setting the good patch */
     std::vector<double> centre_good(3);   //Centre of the good patch. Only x-y
@@ -196,10 +195,11 @@ int main(int argc, const char * argv[]) {
     Shape* Cluster_shape_ptr;
     
     /* Starting the loop for Rg.*/
-    for(int i = 0 ; i<1; i++) //len_Rg
+    for(int i = 0 ; i< 1; i++) // len_Rg
     {
         printf("i=%d\t",i);
         Rg = startingRg + i*d_Rg ;  //  0.0 + i*d_Rg            //sphere's radius
+        
         double projected_rg = Rg*sin(theta_cg); //projected radii of the circles
         printf("projected_rg = %10.10f\n",projected_rg);
         
@@ -223,8 +223,12 @@ int main(int argc, const char * argv[]) {
         else
         {
             
-            /* Rb >= sqrt(Rg^2 - (a/2)^2 ) */
-            Rb_min = sqrt(Rg*Rg - ((p_width_x*p_width_x)/4.0));
+            /* This is for projected radii i.e. rb and rg are projected radii not sphere radius.
+             rb >= sqrt(rg^2 - (a/2)^2 ) */
+            
+            double projected_rb_min = sqrt(projected_rg*projected_rg - ((p_width_x*p_width_x)/4.0));
+            Rb_min = projected_rb_min/(double)sin(theta_cb) ;
+            
             len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) + 1;
             
             //Two cases for each Rb value. +1: spread out, -1: not spread out
@@ -241,11 +245,10 @@ int main(int argc, const char * argv[]) {
                     double projected_rb = Rb*sin(theta_cb);
                     
                     
-                    d_B = dB_list[k] * sqrt(Rb*Rb - Rg*Rg + ((p_width_x*p_width_x)/4.0)) ;
+                    d_B = dB_list[k] * sqrt(projected_rb*projected_rb - projected_rg*projected_rg + ((p_width_x*p_width_x)/4.0)) ;
                     /* Symmetric caps on either side of central patch */
                     c_bad_left[0] = -(p_width_x/2.0) - d_B;
                     c_bad_right[0] = (p_width_x/2.0) + d_B;
-                    
                     
                     /*Checking that centres satisfy cb1 < 0 and cb2 > 0 and */
                     if(c_bad_left[0] >= 0.0 || c_bad_right[0] <= 0.0)
@@ -255,9 +258,9 @@ int main(int argc, const char * argv[]) {
                     }
                     
                     /*Check for  rb1 + cb1 < rg < rb1 - cb1 which should be satisfied by the previous condition */
-                    if(!(Rg < Rb - c_bad_left[0] && Rg > Rb + c_bad_left[0]))
+                    if(!(projected_rg < projected_rb - c_bad_left[0] && projected_rg > projected_rb + c_bad_left[0]))
                     {
-                        printf("j=%d\t Rb=%10.10f Rg=%10.10f dB=%10.10f dB_list[k]=%d\n",j, Rb, Rg, d_B, dB_list[k] );
+                        printf("j=%d\t Project_Rg=%10.10f Project_Rb=%10.10f dB=%10.10f dB_list[k]=%d\n",j, projected_rg, projected_rb, d_B, dB_list[k] );
                         throw std::invalid_argument("Invalid Cb1 and Cb2");
                     }
                     
@@ -296,19 +299,29 @@ int main(int argc, const char * argv[]) {
                         {
                            
                             mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
-                            //This printing part should be after the calc_volume_SA call
-                            if(dB_list[k] == 1)
-                            {
-                                fprintf(pointsFile,"Rg=%10.10f\t Rb=%10.10f\t db=%d\n", Rg, Rb, dB_list[k]);
-                                mc_engine.print_surf_points(pointsFile);
-                            }
                             
                         }
                         else
                         {
-                            mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
+                            //mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
                             
-                            //mc_volume_SA = mc_engine.update_volume_SA(Cluster_shape_ptr, &cell_list, delta);
+                            mc_volume_SA = mc_engine.update_volume_SA(Cluster_shape_ptr, &cell_list, delta);
+                            
+//                            //This printing part should be after the calc_volume_SA call
+//                            if(dB_list[k] == -1)
+//                            {
+//                                if(j == len_Rb-2)
+//                                {
+//                                    fprintf(pointsFile_1,"Rg=%10.10f\t Rb=%10.10f\t db=%d\n", Rg, Rb, dB_list[k]);
+//                                    mc_engine.print_surf_points(pointsFile_1);
+//                                }
+//                                if(j == len_Rb-3)
+//                                {
+//                                    fprintf(pointsFile_2,"Rg=%10.10f\t Rb=%10.10f\t db=%d\n", Rg, Rb, dB_list[k]);
+//                                    mc_engine.print_surf_points(pointsFile_2);
+//                                }
+//                            }
+                            
                         }
                     }
                     catch(const std::logic_error& e)

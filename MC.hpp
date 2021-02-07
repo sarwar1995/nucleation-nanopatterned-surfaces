@@ -44,6 +44,7 @@ public:
     //Miscellaneous I/O
     void print_points(FILE*);
     void print_surf_points(FILE*);
+    void print_volume_points(FILE*);
     
     //Getters
     std::vector<std::vector<double> > get_points() {return x_points;}

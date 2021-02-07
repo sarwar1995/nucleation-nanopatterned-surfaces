@@ -1,0 +1,7 @@
+*.txt
+Clusters/
+Makefile
+*.src
+*.o
+UnitTests/
+.DS_Store

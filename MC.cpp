@@ -152,24 +152,15 @@ std::vector<double> MC::update_volume_SA(Shape* new_cluster, CellList* NgbCellLi
     {
         point = ngb_surface_points[i];
         int isinside = new_cluster->isInside(point);
+        //This check is only being made for ngbs of surface points because all existing surface points that are already inside are expected to be part of interior_points already
         if(isinside)
         {
-//            if(InVector(interior_points, point)==0)
-//            {
-//                n_inside++ ;
             interior_points.insert(point);
-                
-//            }
         }
         int nearSurf = new_cluster->nearSurface(point, delta);
         if(nearSurf)
         {
-//            if(InVector(new_surface_points, point)==0)
-//            {
-//                n_near_surf++;
             new_surface_points.insert(point);
-                
-//            }
         }
     }
     //checking those from old surface points and adding them to new surface points
@@ -179,12 +170,8 @@ std::vector<double> MC::update_volume_SA(Shape* new_cluster, CellList* NgbCellLi
         int nearSurf = new_cluster->nearSurface(point, delta);
         if(nearSurf)
         {
-//            if(InVector(new_surface_points, point)==0)
-//            {
-//                n_near_surf++;
             new_surface_points.insert(point);
-                
-//           }
+            
         }
     }
     
@@ -217,5 +204,19 @@ void MC::print_surf_points(FILE * SurfpointsFile)
         count++;
         std::vector<double> point = *it ;
         fprintf(SurfpointsFile,"%d\t%10.10f\t%10.10f\t%10.10f\n",count, point[0], point[1], point[2]);
+    }
+}
+
+
+void MC::print_volume_points(FILE* VolumePointsFile)
+{
+    std::set<std::vector<double> >::iterator it;
+    int count=0;
+    
+    for(it=interior_points.begin(); it!=interior_points.end(); it++)
+    {
+        count++;
+        std::vector<double> point = *it ;
+        fprintf(VolumePointsFile,"%d\t%10.10f\t%10.10f\t%10.10f\n",count, point[0], point[1], point[2]);
     }
 }
