@@ -190,11 +190,11 @@ double vector_norm (std::vector<double>& a)
 //
 //}
 
-void add_to_N (double N, double G, double Rg, double Rb, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
+void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, int db, int dg_secondary, double volume, double SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
 {
-    double rNhere = round_nearN (N , dN);
+    double rNhere = round_nearN (N , dN);   //This rounds to nearest N.
     int indN = (int) ((rNhere-Nmin)/dN);
-    if(indN >= lenN){printf("No. of particles are not enough"); abort();}
+    if(indN >= lenN){printf("Number of particles are not enough rNhere = %10.5f\n", rNhere); abort();}
     
     double minNi = NArray_Gmin[indN]; //This is 0 when no free energy has been added
     if(G <= minNi || NArray_confs[indN] == 0.0)
@@ -203,6 +203,11 @@ void add_to_N (double N, double G, double Rg, double Rb, double dN, double Nmin,
         NArray_quant[indN][1] = G;
         NArray_quant[indN][2] = Rg;
         NArray_quant[indN][3] = Rb;
+        NArray_quant[indN][4] = Rg_secondary;
+        NArray_quant[indN][5] = (double) db;
+        NArray_quant[indN][6] = (double) dg_secondary;
+        NArray_quant[indN][7] = volume ;
+        NArray_quant[indN][8] = SA ;
     }
     else
     {
@@ -214,4 +219,33 @@ void add_to_N (double N, double G, double Rg, double Rb, double dN, double Nmin,
 void print_point(std::vector<double> point)
 {
     printf("[%10.15f ,%10.15f ,%10.15f]\n", point[0],point[1],point[2]);
+}
+
+void print_points_tofile(std::vector<std::vector<double> > points, FILE* file)
+{
+    for(size_t i=0; i<points.size(); i++)
+    {
+        fprintf(file, "%10.10f\t%10.10f\t%10.10f\n", points[i][0], points[i][1] , points[i][2]);
+    }
+}
+
+void print_NGDataFile (std::vector<std::vector<double> >& NArray_quant, FILE* NGDataFile)
+{
+    int lenN = (int) NArray_quant.size();
+//    int N_quantities = (int) NArray_quant[0].size();
+    for(int i = 0; i<lenN ; i++)
+    {
+        //[N, Gmin (/kbT), Rg, Rb, Rg_secondary, db, dg_secondary, V, SA]
+        fprintf(NGDataFile,"%10.5f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.2f\t%10.2f\t%10.10f\t%10.10f\n" ,NArray_quant[i][0],NArray_quant[i][1], NArray_quant[i][2], NArray_quant[i][3], NArray_quant[i][4], NArray_quant[i][5], NArray_quant[i][6], NArray_quant[i][7] * 1e30, NArray_quant[i][8] * 1e20);
+        //fprintf(NGDataFile,"%10.5f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.5f\n" ,NGmin[i][0],NGmin[i][1],NGmin[i][2],NGmin[i][3],NGmin[i][4],NGmin[i][5],NGmin[i][6]*1e30,NGmin[i][7]*1e20,NGmin[i][8]*1e20,NGmin[i][9]*1e20,NGmin[i][10]*1e30, (Nparticles[i]/1e+03));
+       }
+}
+
+
+void addQuant(std::vector<double> &destination, std::vector<double> &origin, int size_origin)
+{
+    for(size_t i=0; i<size_origin; i++)
+    {
+        destination.push_back(origin[i]);
+    }
 }

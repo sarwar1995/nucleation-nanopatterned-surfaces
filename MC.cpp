@@ -10,6 +10,8 @@
 
 MC::MC()
 {
+
+    
     box.resize(3);
     for(size_t i=0; i<3; i++){
         box[i].resize(2);
@@ -30,6 +32,8 @@ MC::~MC()
 
 //MCbox has the start and end boundaries of the box in all three dimensions
 MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3]){
+    
+
     n_points = num_points;
     box = MCbox;
     BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
@@ -64,9 +68,9 @@ void MC::generate_points()
 std::vector<double> MC::getMeasures (int n_inside, int n_near_surf, double delta)
 {
     std::vector<double> measures(2,0.0);
-    printf("n_inside = %d\t n_near_surf=%d\n",n_inside, n_near_surf);
+    //printf("n_inside = %d\t n_near_surf=%d\n",n_inside, n_near_surf);
     double fraction_volume =  ((double)n_inside/(double)n_points);
-    printf("fraction_volume = %10.10f\n",fraction_volume);
+    //printf("fraction_volume = %10.10f\n",fraction_volume);
     double fraction_SA =  ((double)n_near_surf/(double)n_points);
     double volume = fraction_volume * BoxVolume ;
     double volume_near_surf = fraction_SA * BoxVolume ;
@@ -82,13 +86,19 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
 {
     interior_points.clear();
     surface_points.clear();
+    
     //Calculating volume and SA for the first time. Currently doing this whenever Rg is increased.
     std::vector<double> measures(2,0.0);
     n_inside = 0;
     n_near_surf = 0;
     std::vector <double> point (3, 0.0);
+    
     int count=0;
-    for (int i=0 ; i<n_points; i++)
+//    int start = myRank*points_chunk_per_procs;
+//    int end = (myRank+1)*points_chunk_per_procs - 1;
+    
+    
+    for (int i=0 ; i < n_points; i++)
     {
         count++;
         point[0] = x_points[i][0];
@@ -97,25 +107,17 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
         int isinside = cluster->isInside(point);
         if(isinside)
         {
-//            if(InVector(interior_points, point)==0)
-//            {
-//                n_inside++ ;
                 interior_points.insert(point);
-                
-//           }
         }
         
         int nearSurf = cluster->nearSurface(point, delta);
         if(nearSurf)
         {
-//            if(InVector(surface_points, point)==0)
-//            {
-//                n_near_surf++;
                 surface_points.insert(point);
-                
-//            }
+            
         }
     }
+    
     n_inside = (int) interior_points.size();
     n_near_surf = (int) surface_points.size();
     
@@ -146,6 +148,7 @@ std::vector<double> MC::update_volume_SA(Shape* new_cluster, CellList* NgbCellLi
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1);
     printf("duration for finding neighbors of surface points = %lld\n",duration_ms.count());
+    
     
     printf("number of ngbs of surface_points = %d\n", (int)ngb_surface_points.size());
     for(size_t i=0; i<ngb_surface_points.size(); i++)

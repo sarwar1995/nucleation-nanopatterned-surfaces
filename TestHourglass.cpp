@@ -53,8 +53,8 @@ int main(int argc, const char * argv[])
     delta    = atof(argv[14]);
     
     /* These two files can be used to print out either points (surface or volume) or to get data i.e. volume and SA for different values of n_points using the for loop in n_points at the end */
-//    FILE* dataFile = fopen(argv[15], "w");
-    FILE* pointsfile = fopen(argv[15], "w");
+    FILE* dataFile = fopen(argv[15], "w");
+//    FILE* pointsfile = fopen(argv[15], "w");
 
 
     printf("delta= %10.4f\n", delta);
@@ -132,11 +132,11 @@ int main(int argc, const char * argv[])
         MC mc_engine (n_points, box, aSeed);
         printf("i=%d\t box_volume = %10.5f\n", i, mc_engine.box_volume());
         std::vector<double> measures = mc_engine.calc_volume_SA(shape_ptr, delta);
-        mc_engine.print_volume_points(pointsfile);
+        //mc_engine.print_volume_points(pointsfile);
         double volume = measures[0];
         double SA = measures[1];
-        printf("Hourglass volume = %10.15f\t Surface Area = %10.15f\n", volume, SA);
-        //fprintf(dataFile, "%d\t%10.10f\t%10.10f\n", i, volume, SA);
+        //printf("Hourglass volume = %10.15f\t Surface Area = %10.15f\n", volume, SA);
+        fprintf(dataFile, "%d\t%10.10f\t%10.10f\n", i, volume, SA);
     }
     
     return 0;

@@ -39,6 +39,7 @@ public:
     double getVolume();
     double getSA();
     double getHeight();
+    double projected_SA();
     std::vector<double> xy_spread();
     std::vector<double> threeDim_spread();
         

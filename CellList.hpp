@@ -40,6 +40,8 @@ public:
     
     //Printing
     void print_cell (int, int);
+    void print_neighboring_points(int);
+    std::vector<std::vector<double> > get_cell_boundaries (int, int);
     
 private:
     void generate();
@@ -50,7 +52,7 @@ private:
     int n_points;               //Total number of points in the simulation box
     std::vector<std::vector<double> > box;  //2d array of [start, end] of each box dimension
     std::vector<std::vector<double> > x_points; //coordinates of all points
-    std::vector<double> Rc;                     //Size of each cell
+    std::vector<double> Rc;                     //Size of each cubic cell
     
     
 };

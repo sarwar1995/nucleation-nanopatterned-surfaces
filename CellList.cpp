@@ -27,6 +27,7 @@ CellList::CellList(std::vector<std::vector<double> > x, std::vector<double> R_cu
     n_points = (int) x_points.size();
     for (size_t i=0; i<Rc.size(); i++)
     {
+        
         double box_i = MCbox[i][1] - MCbox[i][0] ; //length_x = box_end_x - box_start_x
         m_cells[i] = (int) (box_i/Rc[i]) ;
         
@@ -60,6 +61,7 @@ void CellList::generate()
     for (int i=0; i<n_points; i++)
     {
         int c = calc_cell_ind(x_points[i]);
+        if(c<0 || c>=total_cells){printf("Incorrect c = %d value at x_points = [%10.10f, %10.10f, %10.10f]\n", c, x_points[i][0], x_points[i][1], x_points[i][2]); abort();}
         list[i] = head[c];
         head[c] = i;
     }
@@ -131,6 +133,37 @@ std::vector<int> CellList::cell_ngbs (int c)
     }
     return CellNgbs;
 }
+
+std::vector<std::vector<double> > CellList::get_cell_boundaries (int c, int yesPrint)
+{
+    std::vector<std::vector<double> > cell_bounds(3);
+    cell_bounds[0].resize(2);
+    cell_bounds[1].resize(2);
+    cell_bounds[2].resize(2);
+    int Cx, Cy, Cz; //Vector cell indices
+    Cx = (int) (c/(m_cells[2]*m_cells[1]));
+    Cy = (int) ((c/m_cells[2])%m_cells[1]);
+    Cz = (int) (c%m_cells[2]);
+    
+    cell_bounds[0][0] = (Cx * Rc[0]) + box[0][0];
+    cell_bounds[0][1] = cell_bounds[0][0] + Rc[0];
+    
+    
+    cell_bounds[1][0] = (Cy * Rc[1]) + box[1][0];
+    cell_bounds[1][1] = cell_bounds[1][0] + Rc[1];
+    
+    cell_bounds[2][0] = (Cz * Rc[2]) + box[2][0];
+    cell_bounds[2][1] = cell_bounds[2][0] + Rc[2];
+    
+    if(yesPrint)
+    {
+        printf("cell_x = [%10.10f, %10.10f\n]", cell_bounds[0][0], cell_bounds[0][1]);
+        printf("cell_y = [%10.10f, %10.10f\n]", cell_bounds[1][0], cell_bounds[1][1]);
+        printf("cell_z = [%10.10f, %10.10f\n]", cell_bounds[2][0], cell_bounds[2][1]);
+    }
+    return cell_bounds;
+}
+
 
 std::vector<std::vector<double> > CellList::calc_neighbors (std::set<std::vector<double> >points_coords)
 {
@@ -213,4 +246,10 @@ void CellList::print_cell(int c, int yesPoints)
         list_i = list[list_i];
     }
     printf("]\n");
+}
+
+//Print the points in the neighboring cells of a cell c
+void CellList::print_neighboring_points(int c)
+{
+    
 }

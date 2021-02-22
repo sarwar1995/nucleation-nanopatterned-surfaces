@@ -27,41 +27,6 @@ Composite_cluster::Composite_cluster(std::vector<Spherical_cap>& capsList, Surfa
     Spherical_cap Cap_B1 = capsList[1];
     Spherical_cap Cap_G = capsList[0];
     Spherical_cap Cap_B2 = capsList[2];
-    
-//    sphere_B1.getCentre(Cb1);
-//    sphere_G.getCentre(Cg);
-//    sphere_B2.getCentre(Cb2);
-//
-//    sphere_B1.getRadius(Rb1);
-//    sphere_G.getRadius(Rg);
-//    sphere_B2.getRadius(Rb2);
-//
-//    subtract_vectors(Cb1, Cg, vec_B1G);        //B1 to G
-//    subtract_vectors(Cg, Cb2, vec_B2G);        //G to B2
-//    subtract_vectors(Cb1, Cb2, vec_B1B2);      //B1 to B2
-//
-//
-//    d_B1_G = sqrt(vec_B1G[0]*vec_B1G[0] + vec_B1G[1]*vec_B1G[1] + vec_B1G[2]*vec_B1G[2]);
-//    d_B2_G = sqrt(vec_B2G[0]*vec_B2G[0] + vec_B2G[1]*vec_B2G[1] + vec_B2G[2]*vec_B2G[2]);
-//    d_B1_B2 = sqrt(vec_B1B2[0]*vec_B1B2[0] + vec_B1B2[1]*vec_B1B2[1] + vec_B1B2[2]*vec_B1B2[2]);
-//
-//
-//    R_int_B1_G = radius_of_intersection(Rb1, Rg, d_B1_G); // of two spheres
-//    R_int_B2_G = radius_of_intersection(Rg, Rb2, d_B2_G);
-//    R_int_B1_B2 = radius_of_intersection(Rb1, Rb2, d_B1_B2);
-//
-//    for(size_t i=0; i<3; i++)
-//    {
-//        normal_B1G[i] = vec_B1G[i]/d_B1_G ;
-//        normal_B2G[i] = vec_B2G[i]/d_B2_G ;
-//        normal_B1B2[i] = vec_B1B2[i]/d_B1_B2 ;
-//    }
-//    std::vector<double> plane_point, plane_normal;
-//    double plane_constant;
-//    plane_normal = wall.getNormal();
-//    plane_constant = wall.getConstant();
-//    plane_point[0] = -(plane_constant/plane_normal[0]) ; plane_point[1] = 0.0; plane_point[2] = 0.0;
-//    Plane Wall(plane_point, plane_normal);
 }
 
 // Check whether a point lies inside the boudaries of the cluster
@@ -115,15 +80,16 @@ bool Composite_cluster::similar_shapes (Composite_cluster& cluster_1, Composite_
 
 std::vector<double> Composite_cluster::xy_spread()
 {
-    std::vector<double> thisSpread (4,0.0);
-    std::vector<double> spread_good = list_of_spherical_caps[0].xy_spread();
-    std::vector<double> spread_bad_left = list_of_spherical_caps[1].xy_spread();
-    std::vector<double> spread_bad_right = list_of_spherical_caps[2].xy_spread();
-  
-    thisSpread[0] = std::min({spread_good[0],spread_bad_left[0], spread_bad_right[0]});
-    thisSpread[1] = std::max({spread_good[1],spread_bad_left[1], spread_bad_right[1]});
-    thisSpread[2] = std::min({spread_good[2],spread_bad_left[2], spread_bad_right[2]});
-    thisSpread[3] = std::max({spread_good[3],spread_bad_left[3], spread_bad_right[3]});
+    std::vector<double> thisSpread (4,0.0); //[Xmin, Xmax, Ymin, Ymax]
+    thisSpread = list_of_spherical_caps[0].xy_spread();
+    for(size_t i=1; i<list_of_spherical_caps.size(); i++)
+    {
+        std::vector<double> spread_ith_cap = list_of_spherical_caps[i].xy_spread();
+        if(spread_ith_cap[0] <= thisSpread[0]){thisSpread[0] = spread_ith_cap[0];}
+        if(spread_ith_cap[1] >= thisSpread[1]){thisSpread[1] = spread_ith_cap[1];}
+        if(spread_ith_cap[2] <= thisSpread[2]){thisSpread[2] = spread_ith_cap[2];}
+        if(spread_ith_cap[3] >= thisSpread[3]){thisSpread[3] = spread_ith_cap[3];}
+    }
     return thisSpread;
 }
 
@@ -149,39 +115,63 @@ std::vector<double> Composite_cluster::threeDim_spread()
 
 std::vector<double> Composite_cluster::projected_SAs()
 {
+    /* This needs to be modified to incorporate more caps (5 caps) projected surface area.*/
+    
     std::vector<double> projected_areas;
     std::vector<Circle> circles(list_of_spherical_caps.size());
+    double h_i_on_ngbleft, h_i_on_ngbright;
+    double segment_area_i_on_ngbleft, segment_area_i_on_ngbright;
+    double patch_left_bound, patch_right_bound;
+    double proj_area_i;
+    
+    std::vector<double> patch_centre;
     for(size_t i=0; i<circles.size(); i++)
     {
         circles[i] = list_of_spherical_caps[i].get_circle();
+        patch_left_bound = surface.Patches[i].patch_boundaries()[0];
+        patch_right_bound = surface.Patches[i].patch_boundaries()[1];\
+        patch_centre = surface.Patches[i].get_patch_centre();
+        h_i_on_ngbleft = circles[i].get_centre()[0] - patch_left_bound;
+        h_i_on_ngbright = patch_right_bound - circles[i].get_centre()[0];
+        
+        segment_area_i_on_ngbleft = circles[i].segment_area(h_i_on_ngbleft);
+        segment_area_i_on_ngbright = circles[i].segment_area(h_i_on_ngbright);
+        
+        if(isnan(segment_area_i_on_ngbleft) && (h_i_on_ngbleft >= circles[i].get_radius() ||  h_i_on_ngbleft <= -circles[i].get_radius())) {segment_area_i_on_ngbleft = 0.0;}
+        if(isnan(segment_area_i_on_ngbright) && (h_i_on_ngbright >= circles[i].get_radius() || h_i_on_ngbright <= -circles[i].get_radius())) {segment_area_i_on_ngbright = 0.0;}
+        
+//        printf("[segment_area_i_on_ngbleft segment_area_i_on_ngbright] = [%10.5f %10.5f]\n", segment_area_i_on_ngbleft, segment_area_i_on_ngbright);
+        
+        proj_area_i = circles[i].area() - segment_area_i_on_ngbleft - segment_area_i_on_ngbright;
+//        printf("projected area i = %10.10f\n", proj_area_i);
+        projected_areas.push_back(proj_area_i);
     }
     
-    /* For central good circle's projected area*/
-    double patch_x = surface.Patches[0].get_x();
-    double h_g_onb1 = (patch_x/2.0); //Height is the distance of chord from centre
-    double h_g_onb2 = h_g_onb1; //Symmetric
-    double segment_area_G_onB1 = circles[0].segment_area(h_g_onb1);
-    double segment_area_G_onB2 = circles[0].segment_area(h_g_onb2);
-    double proj_area_good = circles[0].area() - segment_area_G_onB1 - segment_area_G_onB2;
-    
-    /* For left bad circle's projected area*/
-    std::vector<double> c_b1 = circles[1].get_centre();
-    double h_b1_ong = (-patch_x/2.0) - c_b1[0];
-    double segment_area_B1_onG = circles[1].segment_area(h_b1_ong);
-    double proj_area_bad_1 = (circles[1].area() - segment_area_B1_onG);
-    
-    /* For right bad circle's projected area*/
-    std::vector<double> c_b2 = circles[2].get_centre();
-    double h_b2_ong = c_b2[0] - (patch_x/2.0);
-    double segment_area_B2_onG = circles[2].segment_area(h_b2_ong);
-    double proj_area_bad_2 =  (circles[2].area() - segment_area_B2_onG);
-    
-//    double lens_good_badleft = circles[0].intersection_area(circles[1]);
-//    double lens_good_badright = circles[0].intersection_area(circles[2]);
-    projected_areas.push_back(proj_area_good);
-    projected_areas.push_back(proj_area_bad_1);
-    projected_areas.push_back(proj_area_bad_2);
-    //    return (area_good + area_bad_left + area_bad_right - lens_good_badleft - lens_good_badright);
+//    /* For central good circle's projected area*/
+//    double patch_x = surface.Patches[0].get_x();
+//    double h_g_onb1 = (patch_x/2.0); //Height is the distance of chord from centre
+//    double h_g_onb2 = h_g_onb1; //Symmetric
+//    double segment_area_G_onB1 = circles[0].segment_area(h_g_onb1);
+//    double segment_area_G_onB2 = circles[0].segment_area(h_g_onb2);
+//    double proj_area_good = circles[0].area() - segment_area_G_onB1 - segment_area_G_onB2;
+//
+//    /* For left bad circle's projected area*/
+//    std::vector<double> c_b1 = circles[1].get_centre();
+//    double h_b1_ong = (-patch_x/2.0) - c_b1[0];
+//    double segment_area_B1_onG = circles[1].segment_area(h_b1_ong);
+//    double proj_area_bad_1 = (circles[1].area() - segment_area_B1_onG);
+//
+//    /* For right bad circle's projected area*/
+//    std::vector<double> c_b2 = circles[2].get_centre();
+//    double h_b2_ong = c_b2[0] - (patch_x/2.0);
+//    double segment_area_B2_onG = circles[2].segment_area(h_b2_ong);
+//    double proj_area_bad_2 =  (circles[2].area() - segment_area_B2_onG);
+//
+
+//    projected_areas.push_back(proj_area_good);
+//    projected_areas.push_back(proj_area_bad_1);
+//    projected_areas.push_back(proj_area_bad_2);
+
 
     return projected_areas;
 }

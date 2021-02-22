@@ -44,7 +44,7 @@ double Circle::intersection_area (Circle circle_2)
     double R2_sq = R2*R2;
     double R1 = radius, R1_sq = R1*R1;
     std::vector<double> d_vec;
-    subtract_vectors(centre, circle_2_centre, d_vec);
+    subtract_vectors(centre, circle_2_centre, d_vec); //centre_2 - centre_1 = d_vec
     double d = vector_norm(d_vec);
     if(d >= R1+R2)
     {return 0.0 ;}
@@ -52,9 +52,13 @@ double Circle::intersection_area (Circle circle_2)
     {
         double d_sq = d*d;
         double h1 = (d_sq - R2_sq + R1_sq)/(2*d);
+        printf("h1 = %10.10f\n", h1);
         double h2 = (d_sq + R2_sq - R1_sq)/(2*d);
+        printf("h2 = %10.10f\n", h2);
         double area_segment_1 = segment_area(h1);
+        printf("area segment_1 = %10.10f\n", area_segment_1);
         double area_segment_2 = circle_2.segment_area(h2);
+        printf("area segment_2 = %10.10f\n", area_segment_2);
         intersect_area = area_segment_1 + area_segment_2;
         return intersect_area;
         

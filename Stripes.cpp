@@ -52,9 +52,9 @@ void Stripes::calc_box(double box_z){
     {
         box[i].resize(2);
     }
-    double patch_x = Patches[0].get_x();    //Assuming all patches have the same dims, not equal x and y.
-    double patch_y = Patches[0].get_y();
-    double buffer  = patch_x/4.0 ;          //This buffer is a temporary fix to avoid box breach even before the patch boundary is crossed, as can happen in the case of obtuse angled caps on bad patches.
+//    double patch_x = Patches[0].get_x();    //Assuming all patches have the same dims, not equal x and y.
+//    double patch_y = Patches[0].get_y();
+    //double buffer  = patch_x/4.0 ;          //This buffer is a temporary fix to avoid box breach even before the patch boundary is crossed, as can happen in the case of obtuse angled caps on bad patches.
     std::vector<double> cPatchBounds = central_patch.patch_boundaries();
     box[0][0] = cPatchBounds[0];
     box[0][1] = cPatchBounds[1];
@@ -74,12 +74,12 @@ void Stripes::calc_box(double box_z){
         }
     }
     
-    //Increasing the box size slightly to allow for obtuse spherical caps to fit within the box
-    box[0][0] -= buffer;
-    box[0][1] += buffer;
-    box[1][0] -= buffer;
-    box[1][1] += buffer;
-    
+    //Increasing the box size slightly to allow for obtuse spherical caps to fit within the box. This is only done for the case when the boundary patches are bad i.e. (patches.size()-1) is not divisible by 4
+//    box[0][0] -= buffer;
+//    box[0][1] += buffer;
+//    box[1][0] -= buffer;
+//    box[1][1] += buffer;
+//
     
     box[2][0] = z_wall;
     box[2][1] = box_z;
@@ -88,7 +88,7 @@ void Stripes::calc_box(double box_z){
 std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
 {
     /*
-     1:if that patch boundary is crossed (symmetrically/or in single direction)
+     1:if that patch boundary is crossed (symmetrically. If it is crossed in one direction then it must also be crossed in the other)
     0:if not
      */
     /* 0: central patch, 1: left bad, 2:right bad, 3: left left good, 4: right right good and so on...*/
@@ -105,7 +105,15 @@ std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
     }
     else
     {
-        bounds_crossed[0] = 1;
+        if(cPatchBounds[0] >= shape_xy_spread[0] && cPatchBounds[1] <= shape_xy_spread[1])
+        {
+            bounds_crossed[0] = 1;
+        }
+        else
+        {
+            printf("Both boundaries of the central patch are not crossed. Symmetry error.\n");
+            abort();
+        }
     }
    
     if(Patches.size() >= 3) //i.e. if it is 3 or more
@@ -114,7 +122,7 @@ std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
         for(size_t i=1; i<Patches.size(); i++)
         {
              std::vector<double> iPatchBounds = Patches[i].patch_boundaries();
-            //For a given bounds_crossed
+            //For a given bounds_crossed. For patches beside the central patch we only care about crossing of the boundary in one direction because the centres will also shift and the other boundary is already crossed ex: in case of the left bad patch.
             // if i is odd (left patches) - compare patchbounds[0] with spread[0]
             // if i is even (right patches) - compare patchbounds[1] with spread[1]
             if(i%2 == 0)

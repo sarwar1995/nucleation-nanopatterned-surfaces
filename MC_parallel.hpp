@@ -20,22 +20,26 @@
 #include "Shape.hpp"
 #include "miscformulas.hpp"
 #include <stdexcept>
-//#include <mpi.h>
+#include <mpi.h>
 
-class MC {
+class MC
+{
 public:
-    MC();
+    MC(MPI_Comm);
     ~MC();
-    MC(int, std::vector<std::vector<double> >&, int[3]);
+    MC(int, std::vector<std::vector<double> >&, int[3], MPI_Comm);
     void generate_points();
     inline double box_volume() {return BoxVolume;}
     
     //Sets of Interior and surface points: Using sets to improve uniqueness checking. For the continuos update of volume and surface area by just checking the surface points. Only works for growth of the same type of cluster.
-    std::set<std::vector<double> > interior_points;
-    std::set<std::vector<double> > surface_points;
+    std::vector<std::vector<double> > interior_points;
+    std::vector<std::vector<double> > surface_points;
     
     
     //Volume and SA calculation
+    void addPoint(std::vector<double>&, std::vector<double>&);
+    
+    std::vector<int> loopPoints (Shape* cluster, double delta);
     std::vector<double> calc_volume_SA(Shape*, double); //Returns volume and surface area
     std::vector<double> update_volume_SA(Shape*, CellList*, double);
     
@@ -51,8 +55,12 @@ public:
     
 private:
     // internal MPI variables.
-//    int myRank, nProcs;
-//    int points_chunk_per_procs;
+    MPI_Comm branch_comm;
+    int branch_rank, branch_size;
+    int points_chunk_per_procs;
+    
+    std::vector<double> interior_points_process;
+    std::vector<double> surface_points_process;
     
     int seed[3] ;
     int n_points;
@@ -63,7 +71,7 @@ private:
     
     //Volume and SA given interior and surface points
     std::vector<double> getMeasures (int, int, double);
-
+    
 };
 
 #endif /* MC_hpp */

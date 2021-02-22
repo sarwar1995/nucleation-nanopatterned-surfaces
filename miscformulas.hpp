@@ -22,7 +22,10 @@ double point_line_dist (std::vector<double>&, std::vector<double>&, std::vector<
 double dotprod (std::vector<double>& , std::vector<double>&);
 void subtract_vectors(std::vector<double>&, std::vector<double>&, std::vector<double>&);
 double vector_norm (std::vector<double>&);
-void add_to_N (double, double, double, double, double, double, int, std::vector<double>& , std::vector<double>& , std::vector<std::vector<double> >& );
+void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, int db, int dg_secondary, double volume, double SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
+void print_NGDataFile (std::vector<std::vector<double> >&, FILE*);
+
+void addQuant(std::vector<double> &destination, std::vector<double> &origin, int size_origin);
 
 
 template <class T>
@@ -43,5 +46,7 @@ void appendTovec (std::vector<T>& vec1, std::vector<T>& vec2)
 }
 
 void print_point(std::vector<double>);
+
+void print_points_tofile(std::vector<std::vector<double> >, FILE*);
 
 #endif /* miscformulas_hpp */

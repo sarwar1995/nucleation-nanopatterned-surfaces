@@ -99,6 +99,12 @@ double Spherical_cap::getSA()
     return result;
 }
 
+double Spherical_cap::projected_SA()
+{
+    Circle circle = get_circle();
+    return (circle.area());
+}
+
 std::vector<double> Spherical_cap::xy_spread()
 {
     std::vector<double> result (4, 0.0); //[Xmin, Xmax, Ymin, Ymax]
