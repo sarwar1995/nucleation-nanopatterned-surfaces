@@ -33,10 +33,10 @@ int main(int argc, const char * argv[])
     theta_cb     = atof(argv[5]);
     db_list      = atoi(argv[6]);
     dg_secondary_list = atoi(argv[7]);
-    pB_width_x   = atof(argv[8]);
-    pB_width_y   = atof(argv[9]);
-    pG_width_x   = atof(argv[10]);
-    pG_width_y   = atof(argv[11]);
+    pG_width_x   = atof(argv[8]);
+    pG_width_y   = atof(argv[9]);
+    pB_width_x   = atof(argv[10]);
+    pB_width_y   = atof(argv[11]);
     box_height  = atof(argv[12]);
     n_points    = atoi(argv[13]);
     n_points    = n_points*1e06;

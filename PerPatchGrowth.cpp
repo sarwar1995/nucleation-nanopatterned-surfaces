@@ -7,3 +7,16 @@
 //
 
 #include "PerPatchGrowth.hpp"
+
+
+void StripesSetup ()
+{
+    
+}
+
+
+
+void GrowOnPatch ()
+{
+    
+}

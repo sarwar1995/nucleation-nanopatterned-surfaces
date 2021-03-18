@@ -124,6 +124,8 @@ void subtract_vectors(std::vector<double>& a, std::vector<double>& b, std::vecto
     
 }
 
+
+
 double vector_norm (std::vector<double>& a)
 {
     double norm = 0.0;

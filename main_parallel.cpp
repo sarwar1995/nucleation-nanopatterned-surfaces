@@ -300,34 +300,42 @@ int main(int argc, char * argv[]) {
 
         if(stripes_bounds[0] == 0) //Cap on central cluster is within bounds
         {
-            if(myRank == 0)
+            if(color == 0) //myRank == 0
             {
-
-                Radii_array.push_back(Rg);
-                Radii_array.push_back(0.0); Radii_array.push_back(0.0); //i.e. no cluster on the bad or the secondary good patch
+                
+                if(color_roots == 0)
+                {
+                    Radii_array.push_back(Rg);
+                    Radii_array.push_back(0.0);
+                    Radii_array.push_back(0.0); //i.e. no cluster on the bad or the secondary good patch
+                }
+                
                 int zero = 0;
 
                 //Here I am using the mc_engine to calculate spherical caps volume as a second line of checking that the mc code is working correctly with the given parameters
 
-                //mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
+                mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
 
-                Volume = GoodCap.getVolume(); //mc_volume_SA[0];
-                SA = GoodCap.getSA(); //mc_volume_SA[1];
-                mc_volume_SA[0]= Volume; mc_volume_SA[1] = SA;
+                Volume = mc_volume_SA[0]; //GoodCap.getVolume();
+                SA = mc_volume_SA[1]; //GoodCap.getSA();
+                //mc_volume_SA[0]= Volume; mc_volume_SA[1] = SA;
                 projected_SA = GoodCap.projected_SA();
 
                 std::vector<double> local_compcluster_projected_SA(5,0.0);
                 local_compcluster_projected_SA[0] = projected_SA;
+                if(color_roots == 0)
+                {
+                    Volume_array.push_back(Volume);
+                    SA_array.push_back(SA);
 
-                Volume_array.push_back(Volume);
-                SA_array.push_back(SA);
+                    addQuant(projected_SA_array, local_compcluster_projected_SA, num_patches);
 
-                addQuant(projected_SA_array, local_compcluster_projected_SA, num_patches);
-
-                N = (Volume * 1e-30) * Rho * avogadro ;
-                Number_particles.push_back(N);
-                dB_array.push_back(0.0);
-                dG_array.push_back(0.0);
+                    N = (Volume * 1e-30) * Rho * avogadro ;
+                    Number_particles.push_back(N);
+                    dB_array.push_back(0.0);
+                    dG_array.push_back(0.0);
+                    
+                }
             }
 
         }
@@ -401,8 +409,8 @@ int main(int argc, char * argv[]) {
                     {
                         if(stripes_box_breach[q] == 1)
                         {
-                            printf("Box was breached for Rg=%10.10f\tRb=%10.10f\t, db=%d c_bad_left=%10.10f\t c_bad_right = %10.10f\t and q=%d\n",Rg, Rb,dB_list,c_bad_left[0],c_bad_right[0], (int) q);
-                            abort();
+                            printf("Box was breached JUST BAD PATCH (breaking here) for Rg=%10.10f\tRb=%10.10f\t, db=%d c_bad_left=%10.10f\t c_bad_right = %10.10f\t and q=%d\n",Rg, Rb,dB_list,c_bad_left[0],c_bad_right[0], (int) q);
+                            break;
                             /* Using abort here because for the bad cap the inputs should be such that this does not happen*/
                         }
                     }
@@ -552,8 +560,8 @@ int main(int argc, char * argv[]) {
                                 {
                                     if(stripes_box_breach[q] == 1 && !(stripes_bounds[3]==1 && stripes_bounds[4]==1))
                                     {
-                                        printf("Box was breached for Rg=%10.10f\tRb=%10.10f\tRg_secondary=%10.10f\t, db=%d c_bad_left=%10.10f\t c_bad_right = %10.10f\t c_good_left=%10.10f\t c_good_right = %10.10f\t and q=%d\n",Rg, Rb, Rg_secondary, dB_list,c_bad_left[0],c_bad_right[0], c_good_left[0],c_good_right[0], (int) q);
-                                        abort();
+                                        printf("Box was breached for SECONDARY GOOD PATCH Rg=%10.10f\tRb=%10.10f\tRg_secondary=%10.10f\t, db=%d c_bad_left=%10.10f\t c_bad_right = %10.10f\t c_good_left=%10.10f\t c_good_right = %10.10f\t and q=%d\n",Rg, Rb, Rg_secondary, dB_list,c_bad_left[0],c_bad_right[0], c_good_left[0],c_good_right[0], (int) q);
+                                        break;
                                     }
                                 }
                                 if(stripes_bounds[3]==1 && stripes_bounds[4]==1) //i.e. the secondary good patches are  crossed

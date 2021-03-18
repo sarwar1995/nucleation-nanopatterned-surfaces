@@ -19,7 +19,8 @@ class Circle{
 public:
     Circle();
     ~Circle();
-    Circle(std::vector<double>& , double);  //Point radius form
+    Circle(std::vector<double>& , double);  //Point radius form with normal in the z-direction i.e. the circle is in the xy plane
+    Circle(std::vector<double>& , double, std::vector<double>&);  //Point radius form with Normal to the plane of the circle
     Circle(Sphere&, Plane&);
     Circle(Sphere&, Sphere&);
     
@@ -31,6 +32,8 @@ public:
     double intersection_area(Circle);
     double sector_area (double);
     double segment_area (double);
+    double segment_perimeter (double);
+    double arc_length (double);
     
 protected:
     double radius;

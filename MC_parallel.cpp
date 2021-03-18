@@ -56,6 +56,36 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], M
     generate_points();
 }
 
+MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], int onLattice, MPI_Comm branch_comm_input)
+{
+    if(onLattice == 0)
+    {
+        MC(num_points, MCbox, aSeed, branch_comm_input);
+    }
+    else //Right now only have functionality for cubic lattice
+    {
+        branch_comm = branch_comm_input;
+        MPI_Comm_rank (branch_comm, &branch_rank);
+        MPI_Comm_size (branch_comm, &branch_size);
+        
+        n_points = num_points;
+        box = MCbox;
+        BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
+        //Here the number of points will actually change for the cubic lattic, the way it is set up currently and so that will create problems.
+        x_points.resize(n_points);
+        seed[0] = aSeed[0];
+        seed[1] = aSeed[1];
+        seed[2] = aSeed[2];
+        points_chunk_per_procs = (int)(n_points/branch_size) ;
+        printf("branch_rank = %d\t branch_size = %d\n", branch_rank, branch_size);
+        printf("points_chunk_per_procs = %d\n", points_chunk_per_procs);
+        if(n_points % branch_size != 0){printf("Warning: number of points=%d are not perfectly divisible by number of processes=%d\n",n_points, branch_size); abort();}
+        generate_points_on_lattice();
+    }
+    
+}
+
+
 void MC::generate_points()
 {
     //Using the built in mt19937 rnd engine
@@ -74,6 +104,19 @@ void MC::generate_points()
         x_points[i][2] = dist_z(mt_engine_z);
     }
     
+}
+
+void MC::generate_points_on_lattice()
+{
+    std::vector<int> Seed(3,0);
+    Seed[0] = seed[0];
+    Seed[1] = seed[1];
+    Seed[2] = seed[2];
+    CubicLattice cubic_lattice (n_points, box, Seed);
+    cubic_lattice.CalcTranslationVector();
+    cubic_lattice.GenerateLattice();
+    n_points = cubic_lattice.GetTrueTotalPoints();
+    x_points = cubic_lattice.get_lattice_points();
 }
 
 
@@ -103,7 +146,7 @@ void MC::addPoint(std::vector<double> &destination, std::vector<double> &point)
 
 std::vector<int> MC::loopPoints (Shape* cluster, double delta)
 {
-    
+    /* NO INSERTION IN INTERIOR OR SURFACE POINTS HERE. DO NOT USE UPDATE WITH THIS*/
     
     std::vector<int> int_surf_size(2,-1);
     std::vector <double> point (3, 0.0);
@@ -209,10 +252,12 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
     {
         n_inside = sizes[0];
         n_near_surf = sizes[1];
-        if(n_inside==0 || n_near_surf==0)
-        {
-            throw std::logic_error("n_inside or n_near_surf are zero");
-        }
+        
+        /*NOT THROWING THIS ERROR FOR TESTING SPHERICAL CAP WITH MC*/
+//        if(n_inside==0 || n_near_surf==0)
+//        {
+//            throw std::logic_error("n_inside or n_near_surf are zero");
+//        }
         
         measures = getMeasures (n_inside, n_near_surf, delta);
     }

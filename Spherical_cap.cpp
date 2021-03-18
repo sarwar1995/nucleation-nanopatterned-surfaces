@@ -155,7 +155,7 @@ int Spherical_cap::isInside (std::vector<double>& point)
 {
     if(alternate == 0)
     {
-        if (sphere.isInside(point) == 1 && point[2] > z_wall)
+        if (sphere.isInside(point) == 1 && point[2] >= z_wall)
         {
             return 1;
         }
@@ -166,7 +166,7 @@ int Spherical_cap::isInside (std::vector<double>& point)
     }
     else
     {
-        if (sphere.isInside(point) == 1 && point[2] < z_wall)
+        if (sphere.isInside(point) == 1 && point[2] <= z_wall)
         {
             return 1;
         }

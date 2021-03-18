@@ -29,6 +29,17 @@ Circle::Circle(std::vector<double>& Point , double Radius)
     normal[0] = 0; normal[1] = 0; normal[2] = 1;
 }
 
+Circle::Circle(std::vector<double>& Point, double Radius, std::vector<double>& Normal)
+{
+    radius = Radius;
+    centre.resize(Point.size());
+    for(size_t i =0 ; i<Point.size(); i++)
+    {
+        centre[i] = Point[i];
+    }
+    normal.resize(3);
+    normal[0] = Normal[0]; normal[1] = Normal[1]; normal[2] = Normal[2];
+}
 
 double Circle::area()
 {
@@ -70,8 +81,22 @@ double Circle::sector_area (double theta)
     return radius*radius*(theta/2.0) ;
 }
 
+double Circle::arc_length (double theta)
+{
+    return radius * theta;
+}
+
+
+double Circle::segment_perimeter(double h)
+{
+    double theta = 2 * acos(h/radius);
+    return arc_length(theta);
+}
+
 double Circle::segment_area (double h)
 {
+    //Here h is the height of the segment chord from the centre and this can be negative
+    //When it is positive the minor segment area is calculated and when it is negative the major segment area is calculated
     double Rsquare = radius*radius;
     double theta = 2 * acos(h/radius);
     double area_triangle = h*sqrt(Rsquare - h*h);

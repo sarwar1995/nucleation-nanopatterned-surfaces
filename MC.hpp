@@ -19,6 +19,7 @@
 #include "CellList.hpp"
 #include "Shape.hpp"
 #include "miscformulas.hpp"
+#include "CubicLattice.hpp"
 #include <stdexcept>
 //#include <mpi.h>
 
@@ -27,7 +28,10 @@ public:
     MC();
     ~MC();
     MC(int, std::vector<std::vector<double> >&, int[3]);
+    MC(int, std::vector<std::vector<double> >&, int[3], int);
     void generate_points();
+    void generate_points_on_lattice();
+    void add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points);
     inline double box_volume() {return BoxVolume;}
     
     //Sets of Interior and surface points: Using sets to improve uniqueness checking. For the continuos update of volume and surface area by just checking the surface points. Only works for growth of the same type of cluster.

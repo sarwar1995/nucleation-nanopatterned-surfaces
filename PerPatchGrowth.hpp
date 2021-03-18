@@ -11,4 +11,10 @@
 
 #include <stdio.h>
 
+void StripesSetup ()
+
+
+void GrowOnPatch ();
+
+
 #endif /* PerPatchGrowth_hpp */

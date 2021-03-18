@@ -54,7 +54,6 @@ void Stripes::calc_box(double box_z){
     }
 //    double patch_x = Patches[0].get_x();    //Assuming all patches have the same dims, not equal x and y.
 //    double patch_y = Patches[0].get_y();
-    //double buffer  = patch_x/4.0 ;          //This buffer is a temporary fix to avoid box breach even before the patch boundary is crossed, as can happen in the case of obtuse angled caps on bad patches.
     std::vector<double> cPatchBounds = central_patch.patch_boundaries();
     box[0][0] = cPatchBounds[0];
     box[0][1] = cPatchBounds[1];
@@ -75,6 +74,8 @@ void Stripes::calc_box(double box_z){
     }
     
     //Increasing the box size slightly to allow for obtuse spherical caps to fit within the box. This is only done for the case when the boundary patches are bad i.e. (patches.size()-1) is not divisible by 4
+    
+    //double buffer_x  = 0.1*(box[0][1] - box[0][0]) ;          //This buffer is a temporary fix to avoid box breach even before the patch boundary is crossed, as can happen in the case of obtuse angled caps on bad patches.
 //    box[0][0] -= buffer;
 //    box[0][1] += buffer;
 //    box[1][0] -= buffer;

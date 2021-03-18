@@ -44,6 +44,31 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3]){
     generate_points();
 }
 
+MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], int onLattice)
+{
+    if(onLattice == 0)
+    {
+        MC(num_points, MCbox, aSeed);
+    }
+    else //Right now only have functionality for cubic lattice
+    {
+        n_points = num_points;
+        box = MCbox;
+        BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
+        x_points.resize(n_points);
+        seed[0] = aSeed[0];
+        seed[1] = aSeed[1];
+        seed[2] = aSeed[2];
+        generate_points_on_lattice();
+    }
+    
+}
+
+void MC::add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points)
+{
+    
+}
+
 void MC::generate_points()
 {
     //Using the built in mt19937 rnd engine
@@ -62,6 +87,19 @@ void MC::generate_points()
         x_points[i][2] = dist_z(mt_engine_z);
     }
     
+}
+
+void MC::generate_points_on_lattice()
+{
+    std::vector<int> Seed(3,0);
+    Seed[0] = seed[0];
+    Seed[1] = seed[1];
+    Seed[2] = seed[2];
+    CubicLattice cubic_lattice (n_points, box, Seed);
+    cubic_lattice.CalcTranslationVector();
+    cubic_lattice.GenerateLattice();
+    n_points = cubic_lattice.GetTrueTotalPoints();
+    x_points = cubic_lattice.get_lattice_points();
 }
 
 
@@ -84,6 +122,8 @@ std::vector<double> MC::getMeasures (int n_inside, int n_near_surf, double delta
 //Add Exceptions here try and catch block in main to catch this exception
 std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
 {
+    /* NO INSERTION IN INTERIOR OR SURFACE POINTS HERE. DO NOT USE UPDATE WITH THIS*/
+     
     interior_points.clear();
     surface_points.clear();
     
@@ -93,39 +133,41 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
     n_near_surf = 0;
     std::vector <double> point (3, 0.0);
     
-    int count=0;
+    int interior_count=0;
+    int surface_count=0;
 //    int start = myRank*points_chunk_per_procs;
 //    int end = (myRank+1)*points_chunk_per_procs - 1;
     
     
     for (int i=0 ; i < n_points; i++)
     {
-        count++;
         point[0] = x_points[i][0];
         point[1] = x_points[i][1];
         point[2] = x_points[i][2];
         int isinside = cluster->isInside(point);
         if(isinside)
         {
-                interior_points.insert(point);
+            interior_count++;
+                //interior_points.insert(point);
         }
         
         int nearSurf = cluster->nearSurface(point, delta);
         if(nearSurf)
         {
-                surface_points.insert(point);
+            surface_count++;
+                //surface_points.insert(point);
             
         }
     }
     
-    n_inside = (int) interior_points.size();
-    n_near_surf = (int) surface_points.size();
+    n_inside = interior_count; //(int) interior_points.size();
+    n_near_surf = surface_count; //(int) surface_points.size();
     
-    if(n_inside==0 || n_near_surf==0)
-    {
-        printf("count=%d\t",count);
-        throw std::logic_error("n_inside or n_near_surf are zero");
-    }
+    /*NOT THROWING THIS ERROR FOR CAP VERIFICATION RUN*/
+//    if(n_inside==0 || n_near_surf==0)
+//    {
+//        throw std::logic_error("n_inside or n_near_surf are zero");
+//    }
     
     measures = getMeasures (n_inside, n_near_surf, delta);
     return measures;

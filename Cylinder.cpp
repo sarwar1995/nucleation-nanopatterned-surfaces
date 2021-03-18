@@ -24,11 +24,23 @@ Cylinder::Cylinder(double radius, std::vector<std::vector<double> >& circle_cent
     if((int)circle_centres.size() != 2)
     {
         throw std::invalid_argument("Size of centres should be 2");
-        abort();
     }
     else
     {centres = circle_centres;}
+    normalized_axis.resize(3);
+    for (size_t i=0; i<centres[0].size(); i++)
+    {
+        normalized_axis[i] = centres[1][i] - centres[0][i];
+    }
     
+    double length = vector_norm(normalized_axis);
+    for (size_t i=0; i<centres[0].size(); i++)
+    {
+        normalized_axis[i] = normalized_axis[i]/length;
+    }
+    
+    Circle base_circle (centres[0], rc, normalized_axis); //The normalized_axis of the cylinder is the circle's normal
+    Circle top_circle (centres[0], rc, normalized_axis);
 }
 
 int Cylinder::isWithin(std::vector<double> & point)
@@ -41,10 +53,10 @@ int Cylinder::isWithin(std::vector<double> & point)
     {
         pointMinusP1[i] = point[i] - centres[0][i];
         pointMinusP2[i] = point[i] - centres[1][i];
-        Axis[i] = centres[1][i] - centres[0][i];
+        //Axis[i] = centres[1][i] - centres[0][i];
     }
-    double dotProd_with_p1 = dotprod(pointMinusP1, Axis);
-    double dotProd_with_p2 = dotprod(pointMinusP2, Axis);
+    double dotProd_with_p1 = dotprod(pointMinusP1, normalized_axis);
+    double dotProd_with_p2 = dotprod(pointMinusP2, normalized_axis);
     if(dotProd_with_p1 >= 0 && dotProd_with_p2 <= 0)
     {yes = 1;}
     else{yes = 0;}
@@ -81,3 +93,33 @@ int Cylinder::isInside(std::vector<double> & point)
     return result ;
     
 }
+
+
+double Cylinder::AnalytVolumeWithPlaneIntersect(double z)
+{
+    //Here the height from the circle centre to the plane (intersecting chord) must be positive for acute angled caps and negative for obtuse ones. i.e. if circle centre is below z than h should be positive.
+    double volume;
+    double h = z - centres[0][2];
+    double segment_area = base_circle.segment_area(h);
+    volume = segment_area * length;
+    return volume;
+}
+
+double Cylinder::AnalytSurfAreaWithPlaneIntersect(double z)
+{
+    double SA;
+    double h = z - centres[0][2];
+    double segment_perimeter = base_circle.segment_perimeter(h);
+    SA = segment_perimeter * length;
+    return SA;
+}
+
+double Cylinder::AnalytProjSurfAreaWithPlaneIntersect(double z)
+{
+    double proj_sa;
+    double h = z - centres[0][2];
+    double theta = acos(h/rc); //Here rc is the radius of the base circles which is the radius of the spherical cap that the circles belong to
+    proj_sa = 2.0 * rc * sin(theta) * length ;
+    return proj_sa;
+}
+
