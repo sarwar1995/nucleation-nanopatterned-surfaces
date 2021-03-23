@@ -123,7 +123,7 @@ std::vector<double> Spherical_cap::threeDim_spread()
     if(theta_c >= (pi/2.0))
     {
         if(!(sphere.centre[2] >= z_wall))
-        {throw std::invalid_argument("Invalid sphere centre for obtuse angle in Shperical_cap.cpp"); abort();}
+        {throw std::invalid_argument("Invalid sphere centre for obtuse angle in Shperical_cap.cpp");}
         else
         {
             result[0] = sphere.centre[0] - sphere.radius;
@@ -136,8 +136,12 @@ std::vector<double> Spherical_cap::threeDim_spread()
     }
     else
     {
-        if(!(sphere.centre[2] < z_wall))
-        {throw std::invalid_argument("Invalid sphere centre for acute angle in Shperical_cap.cpp"); abort();}
+        if(!(sphere.centre[2] <= z_wall))
+        {
+            printf("sphere centre at = %10.10f\n", sphere.centre[2]);
+            throw std::invalid_argument("Invalid sphere centre for acute angle in Shperical_cap.cpp");
+            
+        }
         else
         {
             result[0] = center_proj[0] - radius_proj;

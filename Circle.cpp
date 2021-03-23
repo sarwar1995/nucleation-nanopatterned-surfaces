@@ -25,6 +25,7 @@ Circle::Circle(std::vector<double>& Point , double Radius)
     {
         centre[i] = Point[i];
     }
+    
     normal.resize(3);
     normal[0] = 0; normal[1] = 0; normal[2] = 1;
 }
@@ -99,6 +100,7 @@ double Circle::segment_area (double h)
     //When it is positive the minor segment area is calculated and when it is negative the major segment area is calculated
     double Rsquare = radius*radius;
     double theta = 2 * acos(h/radius);
+    printf("theta/2 for segment area = %10.10f\n", theta/2.0);
     double area_triangle = h*sqrt(Rsquare - h*h);
     double area_seg = sector_area (theta) - area_triangle;
     return area_seg;

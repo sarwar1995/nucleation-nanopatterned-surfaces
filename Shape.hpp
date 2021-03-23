@@ -19,9 +19,8 @@ public:
     ~Shape();
     virtual int isInside (std::vector<double>&){return 0;} //Tells whether a point is inside that shape
     virtual int nearSurface(std::vector<double>&, double){return 0;}
-    virtual std::vector<double> xy_spread()
-    {std::vector<double> zero_vec(4,0.0); return zero_vec;}
-    
+    virtual std::vector<double> xy_spread() {std::vector<double> zero_vec(4,0.0); return zero_vec;}
+    void CallMe() {printf("I am a shape\n");}
     virtual std::vector<double> threeDim_spread() {std::vector<double> zero_vec(5,0.0); return zero_vec;}
     
     

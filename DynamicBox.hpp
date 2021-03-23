@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <vector>
+#include "Shape.hpp"
 
 class DynamicBox{
 public:
@@ -18,6 +19,12 @@ public:
     ~DynamicBox();
     DynamicBox(std::vector<std::vector<double>> existing_box, double length);
     int add_fix_box(int direction_to_expand_in, double density_of_points);
+    
+    std::vector<std::vector<double>> get_box(){return box;}
+    
+    std::vector<int> CheckBoxBreach(Shape* cluster);
+    
+    void print_box();
     
     
 protected:

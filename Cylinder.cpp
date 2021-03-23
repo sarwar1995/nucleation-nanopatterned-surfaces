@@ -26,21 +26,27 @@ Cylinder::Cylinder(double radius, std::vector<std::vector<double> >& circle_cent
         throw std::invalid_argument("Size of centres should be 2");
     }
     else
-    {centres = circle_centres;}
+    {
+        centres = circle_centres;
+        
+    }
     normalized_axis.resize(3);
     for (size_t i=0; i<centres[0].size(); i++)
     {
         normalized_axis[i] = centres[1][i] - centres[0][i];
     }
     
-    double length = vector_norm(normalized_axis);
+    length = vector_norm(normalized_axis);
     for (size_t i=0; i<centres[0].size(); i++)
     {
         normalized_axis[i] = normalized_axis[i]/length;
     }
     
-    Circle base_circle (centres[0], rc, normalized_axis); //The normalized_axis of the cylinder is the circle's normal
-    Circle top_circle (centres[0], rc, normalized_axis);
+    Circle a_base_circle (centres[0], rc, normalized_axis); //The normalized_axis of the cylinder is the circle's normal
+    Circle a_top_circle (centres[1], rc, normalized_axis);
+    base_circle = a_base_circle;
+    top_circle = a_top_circle;
+    
 }
 
 int Cylinder::isWithin(std::vector<double> & point)
@@ -99,7 +105,9 @@ double Cylinder::AnalytVolumeWithPlaneIntersect(double z)
 {
     //Here the height from the circle centre to the plane (intersecting chord) must be positive for acute angled caps and negative for obtuse ones. i.e. if circle centre is below z than h should be positive.
     double volume;
-    double h = z - centres[0][2];
+    std::vector<double> circle_centre = base_circle.get_centre();
+    double h = z - circle_centre[2];
+    //centres[0][2];
     double segment_area = base_circle.segment_area(h);
     volume = segment_area * length;
     return volume;

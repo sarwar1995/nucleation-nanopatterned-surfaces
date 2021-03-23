@@ -106,7 +106,7 @@ std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
     }
     else
     {
-        if(cPatchBounds[0] >= shape_xy_spread[0] && cPatchBounds[1] <= shape_xy_spread[1])
+        if(cPatchBounds[0] > shape_xy_spread[0] && cPatchBounds[1] < shape_xy_spread[1])
         {
             bounds_crossed[0] = 1;
         }

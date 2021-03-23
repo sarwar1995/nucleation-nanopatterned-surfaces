@@ -32,7 +32,8 @@ public:
     void generate_points();
     void generate_points_on_lattice();
     void add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points);
-    inline double box_volume() {return BoxVolume;}
+    void update_box (std::vector<std::vector<double>> new_box);
+    inline double box_volume() {return ((box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]));}
     
     //Sets of Interior and surface points: Using sets to improve uniqueness checking. For the continuos update of volume and surface area by just checking the surface points. Only works for growth of the same type of cluster.
     std::set<std::vector<double> > interior_points;
@@ -51,6 +52,7 @@ public:
     //Getters
     std::vector<std::vector<double> > get_points() {return x_points;}
     std::vector<std::vector<double> > get_box() {return box;}
+    int get_num_points (){return n_points;};
     
     
 private:
@@ -63,7 +65,6 @@ private:
     int n_inside, n_near_surf;
     std::vector<std::vector<double> > box;
     std::vector<std::vector<double> > x_points;
-    double BoxVolume;
     
     //Volume and SA given interior and surface points
     std::vector<double> getMeasures (int, int, double);

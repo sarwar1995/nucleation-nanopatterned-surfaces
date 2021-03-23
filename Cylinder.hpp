@@ -30,7 +30,10 @@ public:
     //These three functions are for cylinder with axis parallel to the xy plane.
     double AnalytVolumeWithPlaneIntersect (double z); //plane parallel to xy axis i.e. z=constant
     double AnalytSurfAreaWithPlaneIntersect (double z);
-    double AnalytProjSurfAreaWithPlaneIntersect (double z); 
+    double AnalytProjSurfAreaWithPlaneIntersect (double z);
+    
+    std::vector<double> get_normalized_axis () {return normalized_axis;}
+    std::vector<std::vector<double>> get_centres(){return centres;}
     
 protected:
     double rc;

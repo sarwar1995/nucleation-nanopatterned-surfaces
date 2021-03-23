@@ -218,6 +218,32 @@ void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, in
     NArray_confs[indN] = NArray_confs[indN] + 1;
 }
 
+
+
+void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double volume, double SA, double proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
+{
+    double rNhere = round_nearN (N , dN);   //This rounds to nearest N.
+    int indN = (int) ((rNhere-Nmin)/dN);
+    if(indN >= lenN){printf("Number of particles are not enough rNhere = %10.5f\n", rNhere); abort();}
+    
+    double minNi = NArray_Gmin[indN]; //This is 0 when no free energy has been added
+    if(G <= minNi || NArray_confs[indN] == 0.0)
+    {
+        NArray_Gmin[indN] = G ;
+        NArray_quant[indN][1] = G;
+        NArray_quant[indN][2] = Rg;
+        NArray_quant[indN][3] = cyl_length;
+        NArray_quant[indN][4] = volume ;
+        NArray_quant[indN][5] = SA ;
+        NArray_quant[indN][6] = proj_SA ;
+    }
+    else
+    {
+        NArray_quant[indN][1] = minNi;
+    }
+    NArray_confs[indN] = NArray_confs[indN] + 1;
+}
+
 void print_point(std::vector<double> point)
 {
     printf("[%10.15f ,%10.15f ,%10.15f]\n", point[0],point[1],point[2]);
@@ -250,4 +276,24 @@ void addQuant(std::vector<double> &destination, std::vector<double> &origin, int
     {
         destination.push_back(origin[i]);
     }
+}
+
+
+std::vector<double> add_double_vectors (std::vector<double>& a, std::vector<double>& b)
+{
+    std::vector<double> result(a.size(),0.0);
+    if(a.size() != b.size())
+    {
+        printf("size of a = %d\t b=%d\n", (int)a.size(), (int)b.size());
+        throw std::logic_error ("vector size should be same for addition\n");
+    }
+    else
+    {
+        
+        for(size_t i=0; i<a.size(); i++)
+        {
+            result[i] = a[i] + b[i];
+        }
+    }
+    return result;
 }

@@ -19,8 +19,8 @@ class Circle{
 public:
     Circle();
     ~Circle();
-    Circle(std::vector<double>& , double);  //Point radius form with normal in the z-direction i.e. the circle is in the xy plane
     Circle(std::vector<double>& , double, std::vector<double>&);  //Point radius form with Normal to the plane of the circle
+    Circle(std::vector<double>& , double);  //Point radius form with normal in the z-direction i.e. the circle is in the xy plane
     Circle(Sphere&, Plane&);
     Circle(Sphere&, Sphere&);
     

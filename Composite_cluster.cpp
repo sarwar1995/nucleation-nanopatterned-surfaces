@@ -146,33 +146,6 @@ std::vector<double> Composite_cluster::projected_SAs()
 //        printf("projected area i = %10.10f\n", proj_area_i);
         projected_areas.push_back(proj_area_i);
     }
-    
-//    /* For central good circle's projected area*/
-//    double patch_x = surface.Patches[0].get_x();
-//    double h_g_onb1 = (patch_x/2.0); //Height is the distance of chord from centre
-//    double h_g_onb2 = h_g_onb1; //Symmetric
-//    double segment_area_G_onB1 = circles[0].segment_area(h_g_onb1);
-//    double segment_area_G_onB2 = circles[0].segment_area(h_g_onb2);
-//    double proj_area_good = circles[0].area() - segment_area_G_onB1 - segment_area_G_onB2;
-//
-//    /* For left bad circle's projected area*/
-//    std::vector<double> c_b1 = circles[1].get_centre();
-//    double h_b1_ong = (-patch_x/2.0) - c_b1[0];
-//    double segment_area_B1_onG = circles[1].segment_area(h_b1_ong);
-//    double proj_area_bad_1 = (circles[1].area() - segment_area_B1_onG);
-//
-//    /* For right bad circle's projected area*/
-//    std::vector<double> c_b2 = circles[2].get_centre();
-//    double h_b2_ong = c_b2[0] - (patch_x/2.0);
-//    double segment_area_B2_onG = circles[2].segment_area(h_b2_ong);
-//    double proj_area_bad_2 =  (circles[2].area() - segment_area_B2_onG);
-//
-
-//    projected_areas.push_back(proj_area_good);
-//    projected_areas.push_back(proj_area_bad_1);
-//    projected_areas.push_back(proj_area_bad_2);
-
-
     return projected_areas;
 }
 

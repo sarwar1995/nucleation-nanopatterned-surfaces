@@ -26,6 +26,7 @@ MC::MC()
 
 MC::~MC()
 {
+    n_points = 0;
     x_points.clear();
     box.clear();
 }
@@ -36,7 +37,6 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3]){
 
     n_points = num_points;
     box = MCbox;
-    BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
     x_points.resize(n_points);
     seed[0] = aSeed[0];
     seed[1] = aSeed[1];
@@ -54,7 +54,6 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], i
     {
         n_points = num_points;
         box = MCbox;
-        BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
         x_points.resize(n_points);
         seed[0] = aSeed[0];
         seed[1] = aSeed[1];
@@ -64,10 +63,82 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], i
     
 }
 
-void MC::add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points)
+void MC::update_box(std::vector<std::vector<double>> new_box)
 {
+    box = new_box;
+}
+
+void MC::add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points_per_added_box)
+{
+    std::mt19937 mt_engine_x (seed[0]); //I am using the same seed here but maybe for generating more points we should a different seed than the original one.
+    std::mt19937 mt_engine_y (seed[1]);
+    std::mt19937 mt_engine_z (seed[2]);
+    std::vector<std::vector<double>> added_box_bounds(2);
+    added_box_bounds[0].resize(2);
+    added_box_bounds[1].resize(2);
+    added_box_bounds[0][0] = new_box[direction_to_expand_in][0];
+    added_box_bounds[0][1] = box[direction_to_expand_in][0]; //The original lower bound in the expanded direction is now the upper bound
+    added_box_bounds[1][0] = box[direction_to_expand_in][1];
+    added_box_bounds[1][1] = new_box[direction_to_expand_in][1];
+    
+    if(direction_to_expand_in == 2)
+    {
+        std::uniform_real_distribution<double> dist_x(box[0][0], box[0][1]); //a is included and b is not dist_x [a,b)
+        std::uniform_real_distribution<double> dist_y(box[1][0], box[1][1]);
+        std::uniform_real_distribution<double> dist_z(added_box_bounds[1][0], added_box_bounds[1][1]); //Since only upper box will be added, so just one dist_z
+        int new_total_points = n_points + extra_points_per_added_box;
+        for(size_t i=0; i<extra_points_per_added_box; i++)
+        {
+            std::vector<double> new_point(3,0.0);
+            new_point[0] = dist_x(mt_engine_x);
+            new_point[1] = dist_y(mt_engine_y);
+            new_point[2] = dist_z(mt_engine_z);
+            x_points.push_back(new_point);
+        }
+        n_points = new_total_points;
+
+    }
+    else
+    {
+        // when direction_to_expand_in != 2 then we will have two boxes added.
+        std::vector<std::uniform_real_distribution<double>> distributions(3);
+        
+        for(int n=0; n<2; n++) //This n is the two symmetric boxes that are being added
+        {
+            for(int i=0; i<3; i++)
+            {
+                if(i != direction_to_expand_in)
+                {
+                    std::uniform_real_distribution<double> dist(box[i][0], box[i][1]);
+                    distributions[i] = dist ;
+                }
+                else
+                {
+                    
+                    std::uniform_real_distribution<double> dist(added_box_bounds[n][0], added_box_bounds[n][1]);
+                    distributions[i] = dist ;
+                }
+                
+            }
+            for(size_t i=0; i<extra_points_per_added_box; i++)
+            {
+                std::vector<double> new_point(3,0.0);
+                new_point[0] = distributions[0](mt_engine_x);
+                new_point[1] = distributions[1](mt_engine_y);
+                new_point[2] = distributions[2](mt_engine_z);
+                x_points.push_back(new_point);
+            }
+            
+        }
+        
+        int new_total_points = n_points + 2*extra_points_per_added_box;
+        n_points = new_total_points;
+    }
+    
+    update_box(new_box);
     
 }
+
 
 void MC::generate_points()
 {
@@ -75,7 +146,7 @@ void MC::generate_points()
     std::mt19937 mt_engine_x (seed[0]); //deterministic seed. [0 2^64)
     std::mt19937 mt_engine_y (seed[1]);
     std::mt19937 mt_engine_z (seed[2]);
-    std::uniform_real_distribution<double> dist_x(box[0][0], box[0][1]); //both range numbers are inclusive
+    std::uniform_real_distribution<double> dist_x(box[0][0], box[0][1]); //a is included and b is not dist_x (a,b)
     std::uniform_real_distribution<double> dist_y(box[1][0], box[1][1]);
     std::uniform_real_distribution<double> dist_z(box[2][0], box[2][1]);
     
@@ -110,8 +181,8 @@ std::vector<double> MC::getMeasures (int n_inside, int n_near_surf, double delta
     double fraction_volume =  ((double)n_inside/(double)n_points);
     //printf("fraction_volume = %10.10f\n",fraction_volume);
     double fraction_SA =  ((double)n_near_surf/(double)n_points);
-    double volume = fraction_volume * BoxVolume ;
-    double volume_near_surf = fraction_SA * BoxVolume ;
+    double volume = fraction_volume * box_volume() ;
+    double volume_near_surf = fraction_SA * box_volume() ;
     double SA = volume_near_surf/(2.0*delta) ;  // (Volume/thickness) = SA
     measures[0] = volume;
     measures[1] = SA;
@@ -137,8 +208,6 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
     int surface_count=0;
 //    int start = myRank*points_chunk_per_procs;
 //    int end = (myRank+1)*points_chunk_per_procs - 1;
-    
-    
     for (int i=0 ; i < n_points; i++)
     {
         point[0] = x_points[i][0];
@@ -155,11 +224,10 @@ std::vector<double> MC::calc_volume_SA(Shape* cluster, double delta)
         if(nearSurf)
         {
             surface_count++;
-                //surface_points.insert(point);
+            surface_points.insert(point);
             
         }
     }
-    
     n_inside = interior_count; //(int) interior_points.size();
     n_near_surf = surface_count; //(int) surface_points.size();
     

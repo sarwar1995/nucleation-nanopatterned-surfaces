@@ -26,6 +26,7 @@ public:
     //int valid_point(std::vector<double>&);
     void calc_box(double);
     std::vector<std::vector<double> > box;
+    inline double box_volume() {return (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;}
 private:
     Patch central_patch;    //The patch that has its centre at the origin
     double z_wall;
