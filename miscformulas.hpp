@@ -8,7 +8,8 @@
 #include <stdio.h>
 #include <vector>
 #include <math.h>
-
+#include <algorithm>
+#include <stdexcept>
 #ifndef miscformulas_hpp
 #define miscformulas_hpp
 

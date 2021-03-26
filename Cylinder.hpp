@@ -15,6 +15,7 @@
 #include "Surface.hpp"
 #include "miscformulas.hpp"
 #include <stdio.h>
+#include <stdexcept>
 
 class Cylinder:public Shape
 {

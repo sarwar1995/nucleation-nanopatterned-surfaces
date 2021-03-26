@@ -20,9 +20,10 @@ Spherocylinder_cap_composite::~Spherocylinder_cap_composite()
     
 }
 
-Spherocylinder_cap_composite::Spherocylinder_cap_composite(std::vector<Spherical_cap*> caps, SpheroCylinder* spherocylinder):
+Spherocylinder_cap_composite::Spherocylinder_cap_composite(std::vector<Spherical_cap*> caps, SpheroCylinder* spherocylinder, Surface* SurfacePtr):
 list_of_spherical_caps(caps),
-sphero_cylinder(spherocylinder)
+sphero_cylinder(spherocylinder),
+surface_ptr(SurfacePtr)
 {
     Shape* sphero_cylinder_ptr = (Shape*) spherocylinder;
     list_of_shapes.push_back(sphero_cylinder_ptr);
@@ -37,7 +38,40 @@ sphero_cylinder(spherocylinder)
 
 double Spherocylinder_cap_composite::projected_SA()
 {
-    return -1;
+    double result;
+
+    double left_circle_h_on_right, right_circle_h_on_left;
+    std::vector<double> projected_areas;
+    std::vector<Circle> circles(list_of_spherical_caps.size());
+    
+    double spherocylinder_proj_area = sphero_cylinder->AnalytProjSurfAreaWithPlaneIntersect();
+    
+    //This is currently assuming there is a single good patch surrounded by infinite bad patches.
+    double single_patch_left_bound = surface_ptr->Patches[0].patch_boundaries()[0];
+    double single_patch_right_bound = surface_ptr->Patches[0].patch_boundaries()[1];
+    for(size_t i=0; i<circles.size(); i++)
+    {
+        circles[i] = list_of_spherical_caps[i]->get_circle();
+        
+    }
+    
+    
+    left_circle_h_on_right = single_patch_left_bound - circles[0].get_centre()[0];
+    right_circle_h_on_left = circles[1].get_centre()[0] - single_patch_right_bound;
+    
+    double segment_area_left_circle = circles[0].segment_area(left_circle_h_on_right);
+    double segment_area_right_circle = circles[1].segment_area(right_circle_h_on_left);
+    
+    if(isnan(segment_area_left_circle) && (left_circle_h_on_right >= circles[0].get_radius() ||  left_circle_h_on_right <= -circles[0].get_radius())) {segment_area_left_circle = 0.0;}
+    
+    if(isnan(segment_area_right_circle) && (right_circle_h_on_left >= circles[1].get_radius() || right_circle_h_on_left <= -circles[1].get_radius())) {segment_area_right_circle = 0.0;}
+    
+    //        printf("[segment_area_i_on_ngbleft segment_area_i_on_ngbright] = [%10.5f %10.5f]\n", segment_area_i_on_ngbleft, segment_area_i_on_ngbright);
+    
+    double proj_area_left = circles[0].area() - segment_area_left_circle;
+    double proj_area_right = circles[1].area() - segment_area_right_circle;
+    result = spherocylinder_proj_area + proj_area_left + proj_area_right ;
+    return result;
 }
 
 

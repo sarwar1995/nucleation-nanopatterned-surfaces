@@ -21,6 +21,7 @@
 #include "miscformulas.hpp"
 #include "CubicLattice.hpp"
 #include <stdexcept>
+#include <chrono>
 //#include <mpi.h>
 
 class MC {

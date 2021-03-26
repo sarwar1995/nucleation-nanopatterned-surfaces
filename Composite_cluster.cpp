@@ -129,7 +129,7 @@ std::vector<double> Composite_cluster::projected_SAs()
     {
         circles[i] = list_of_spherical_caps[i].get_circle();
         patch_left_bound = surface.Patches[i].patch_boundaries()[0];
-        patch_right_bound = surface.Patches[i].patch_boundaries()[1];\
+        patch_right_bound = surface.Patches[i].patch_boundaries()[1];
         patch_centre = surface.Patches[i].get_patch_centre();
         h_i_on_ngbleft = circles[i].get_centre()[0] - patch_left_bound;
         h_i_on_ngbright = patch_right_bound - circles[i].get_centre()[0];

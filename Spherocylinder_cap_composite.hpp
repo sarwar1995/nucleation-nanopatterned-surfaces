@@ -21,7 +21,7 @@ class Spherocylinder_cap_composite: public Shape {
 public:
     Spherocylinder_cap_composite();
     ~Spherocylinder_cap_composite();
-    Spherocylinder_cap_composite(std::vector<Spherical_cap*>, SpheroCylinder*);
+    Spherocylinder_cap_composite(std::vector<Spherical_cap*>, SpheroCylinder*, Surface*);
     
     int isInside (std::vector<double>&);//Tells whether a point is inside that shape
     int nearSurface(std::vector<double>&, double);
@@ -31,6 +31,7 @@ public:
     double projected_SA();
     
 protected:
+    Surface* surface_ptr;
     std::vector<Spherical_cap*> list_of_spherical_caps;
     SpheroCylinder* sphero_cylinder;
     std::vector<Shape*> list_of_shapes;

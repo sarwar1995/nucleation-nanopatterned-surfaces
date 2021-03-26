@@ -106,7 +106,7 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder (SpheroCylinder* spherocylind
                     double SA = mc_volume_SA[1];
                     
                     //This AnalytProjSurfAreaWithPlaneIntersect() is incorrect
-                    double projected_SA = spherocylinder->AnalytProjSurfAreaWithPlaneIntersect();
+                    double projected_SA = spherocylinder_composite.projected_SA();
                     
                     double N = (Volume * 1e-30) * Rho * avogadro ;
                     
