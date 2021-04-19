@@ -96,14 +96,17 @@ void GetFreeEnergyProfile::ReadProfileSphericalCaps()
 void GetFreeEnergyProfile::ReadProfileSpherocylinder()
 {
     //Input file should be in the format:
-    // Rg, cyl_length, N, Volume, SA, ProjSA
-    format = "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n";
-    double Rg, cyl_length, N, Volume, SA, ProjSA;
+    // Rg, cyl_length, chord_length, Rb, dB, N, Volume, SA, ProjSA[0], ProjSA[1], ProjSA[2]
+    
+    format = "%lf\t%lf\t%lf\t%lf\t%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n";
+    double Rg, cyl_length, chord_length, Rb, N, Volume, SA;
+    std::vector<double> ProjSA (3,0.0);
     double G;
-    //NArray_quant will have 9 values only for the all spherical caps case
+    int dB;
+    //NArray_quant will have 11 values only for the spherocylinder case
     for (int i=0 ; i<len_N; i++)
     {
-        NArray_quant[i] = std::vector<double> (7,0.0);
+        NArray_quant[i] = std::vector<double> (11,0.0);
         if(i==0)
         {
             NArray_quant[i][0] = Nmin;
@@ -118,16 +121,26 @@ void GetFreeEnergyProfile::ReadProfileSpherocylinder()
         printf("Error opening input file\n");
         exit(1);
     }
-    int fscanf_result = fscanf(input_file, format, &Rg, &cyl_length, &N, &Volume, &SA, &ProjSA);
+    
+    
+    int fscanf_result = fscanf(input_file, format, &Rg, &cyl_length, &chord_length, &Rb, &dB, &N, &Volume, &SA, &ProjSA[0], &ProjSA[1], &ProjSA[2]);
+    
     
     while(fscanf_result != EOF)
     {
         Volume = Volume * 1e-30;    //This converts the volume from Ang^3 to m^3
         SA = SA * 1e-20;
-        ProjSA = ProjSA * 1e-20;
-        G = free_energy_singlecap(Rho, Mu, Sigma, Volume, SA, ProjSA, theta_cg, T);
-        add_to_N_spherocylinder (N, G, Rg, cyl_length, Volume,  SA, ProjSA,  dN,  Nmin,  len_N, NArray_Gmin, NArray_confs, NArray_quant);
-        fscanf_result = fscanf(input_file, format, &Rg, &cyl_length, &N, &Volume, &SA, &ProjSA);
+        
+        for(int j=0; j< (int)ProjSA.size(); j++){
+            ProjSA[j] = ProjSA[j] * 1e-20;
+            
+        }
+        G = free_energy_spherocylinder (Rho, Mu, Sigma, Volume, SA, ProjSA, theta_cg, theta_cb, T);
+//        G = free_energy_singlecap(Rho, Mu, Sigma, Volume, SA, ProjSA, theta_cg, T);
+
+        add_to_N_spherocylinder (N, G, Rg, cyl_length, chord_length, Rb, dB, Volume,  SA, ProjSA,  dN,  Nmin,  len_N, NArray_Gmin, NArray_confs, NArray_quant);
+        
+        fscanf_result = fscanf(input_file, format, &Rg, &cyl_length, &chord_length, &Rb, &dB, &N, &Volume, &SA, &ProjSA[0], &ProjSA[1], &ProjSA[2]);
     }
     print_NGDataFile_spherocylinder (NArray_quant, output_file);
     fclose(output_file);
@@ -146,6 +159,7 @@ int main(int argc, const char * argv[])
     
     int Nmin, Nmax;
     double dN;
+    int isSpherocylinderFile;
     FILE* input_file;
     FILE* output_file;
     
@@ -160,9 +174,18 @@ int main(int argc, const char * argv[])
     theta_cb    = atof(argv[9]);
     input_file  = fopen(argv[10], "r");
     output_file = fopen(argv[11], "w");
+    isSpherocylinderFile = atof(argv[12]);
     
     GetFreeEnergyProfile get_free_energy_profile (input_file, output_file, Nmin, Nmax, dN, Rho, Mu, Sigma, T, theta_cg, theta_cb);
-    get_free_energy_profile.ReadProfileSphericalCaps();
+    if (isSpherocylinderFile==1)
+    {
+        get_free_energy_profile.ReadProfileSpherocylinder();
+    }
+    else
+    {
+        get_free_energy_profile.ReadProfileSphericalCaps();
+    }
+    
     
     
     return 0;

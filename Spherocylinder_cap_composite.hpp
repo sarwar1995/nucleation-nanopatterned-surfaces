@@ -28,7 +28,8 @@ public:
     
     std::vector<double> xy_spread();
     std::vector<double> threeDim_spread();
-    double projected_SA();
+    std::vector<double> projected_SA();
+    void oppositeBoundCross ();
     
 protected:
     Surface* surface_ptr;

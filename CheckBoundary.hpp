@@ -9,10 +9,11 @@
 #ifndef CheckBoundary_hpp
 #define CheckBoundary_hpp
 #include <stdio.h>
+#include <stdlib.h>
 #include "Surface.hpp"
 #include "Shape.hpp"
 #include "DynamicBox.hpp"
-#include "MC.hpp"
+#include <math.h>
 
 
 class CheckBoundary{

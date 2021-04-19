@@ -81,3 +81,33 @@ void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::ve
     }
     
 }
+
+void add_Volume_SA_spherocylinder_parallel(std::vector<int> dB_global_array, std::vector<double> Number_particles_global, std::vector<double> Volume_global_array, std::vector<double> SA_global_array, std::vector<double> projected_global_SA_array, std::vector<double> Rg_global_array, std::vector<double> Rb_global_array, std::vector<double> cyl_length_global_array, std::vector<double> chord_length_global_array, FILE* outputfile)
+{
+    int size = (int)Volume_global_array.size();
+    
+    if(!((int)SA_global_array.size() == size && (int)dB_global_array.size() == size && (int)Number_particles_global.size() == size))
+    {
+        printf("Sizes of one of N=%d, SA=%d, db=%d is not the same as V global array",(int)Number_particles_global.size(), (int)SA_global_array.size(), (int)dB_global_array.size());
+        abort();
+    }
+    else
+    {
+        for(size_t i=0; i<Volume_global_array.size(); i++)
+        {
+            fprintf(outputfile, "%10.10f\t%10.10f\t%10.10f\t%10.10f\t%d\t%10.10f\t%10.10f\t%10.10f\t" , Rg_global_array[i], cyl_length_global_array[i], chord_length_global_array[i], Rb_global_array[i], dB_global_array[i], Number_particles_global[i], Volume_global_array[i], SA_global_array[i]);
+            
+            int k_start = (int)i * 3;
+            int k_end = k_start+3;
+            for(int k=k_start; k<k_end; k++)
+            {
+                fprintf(outputfile, "%10.10f\t", projected_global_SA_array[k]);
+            }
+            fprintf(outputfile, "\n");
+        }
+        
+    }
+  
+}
+
+

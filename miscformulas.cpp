@@ -220,7 +220,7 @@ void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, in
 
 
 
-void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double volume, double SA, double proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
+void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double chord_length, double Rb, int dB, double volume, double SA, std::vector<double> proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
 {
     double rNhere = round_nearN (N , dN);   //This rounds to nearest N.
     int indN = (int) ((rNhere-Nmin)/dN);
@@ -233,9 +233,14 @@ void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, 
         NArray_quant[indN][1] = G;
         NArray_quant[indN][2] = Rg;
         NArray_quant[indN][3] = cyl_length;
-        NArray_quant[indN][4] = volume ;
-        NArray_quant[indN][5] = SA ;
-        NArray_quant[indN][6] = proj_SA ;
+        NArray_quant[indN][4] = chord_length;
+        NArray_quant[indN][5] = Rb;
+        NArray_quant[indN][6] = (double) dB;
+        NArray_quant[indN][7] = volume ;
+        NArray_quant[indN][8] = SA ;
+        NArray_quant[indN][9] = proj_SA[0] ;
+        NArray_quant[indN][10] = proj_SA[1] ;
+        NArray_quant[indN][11] = proj_SA[2] ;
     }
     else
     {
@@ -268,6 +273,17 @@ void print_NGDataFile (std::vector<std::vector<double> >& NArray_quant, FILE* NG
         //fprintf(NGDataFile,"%10.5f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.5f\n" ,NGmin[i][0],NGmin[i][1],NGmin[i][2],NGmin[i][3],NGmin[i][4],NGmin[i][5],NGmin[i][6]*1e30,NGmin[i][7]*1e20,NGmin[i][8]*1e20,NGmin[i][9]*1e20,NGmin[i][10]*1e30, (Nparticles[i]/1e+03));
        }
 }
+
+void print_NGDataFile_spherocylinder (std::vector<std::vector<double> >& NArray_quant, FILE* NGDataFile)
+{
+    int lenN = (int) NArray_quant.size();
+    for(int i = 0; i<lenN ; i++)
+    {
+        
+        fprintf(NGDataFile,"%10.5f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.2f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\n" ,NArray_quant[i][0],NArray_quant[i][1], NArray_quant[i][2], NArray_quant[i][3], NArray_quant[i][4], NArray_quant[i][5], NArray_quant[i][6], NArray_quant[i][7] * 1e30, NArray_quant[i][8] * 1e20, NArray_quant[i][9] * 1e20, NArray_quant[i][10] * 1e20, NArray_quant[i][11] * 1e20);
+    }
+}
+
 
 
 void addQuant(std::vector<double> &destination, std::vector<double> &origin, int size_origin)

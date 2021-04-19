@@ -44,7 +44,6 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], M
     
     n_points = num_points;
     box = MCbox;
-    BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
     x_points.resize(n_points);
     seed[0] = aSeed[0];
     seed[1] = aSeed[1];
@@ -52,7 +51,7 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], M
     points_chunk_per_procs = (int)(n_points/branch_size) ;
     printf("branch_rank = %d\t branch_size = %d\n", branch_rank, branch_size);
     printf("points_chunk_per_procs = %d\n", points_chunk_per_procs);
-      if(n_points % branch_size != 0){printf("Warning: number of points=%d are not perfectly divisible by number of processes=%d\n",n_points, branch_size); abort();}
+      if(n_points % branch_size != 0){printf("Warning: Initial number of points=%d are not perfectly divisible by number of processes=%d\n",n_points, branch_size); abort();}
     generate_points();
 }
 
@@ -70,7 +69,6 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], i
         
         n_points = num_points;
         box = MCbox;
-        BoxVolume = (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;
         //Here the number of points will actually change for the cubic lattic, the way it is set up currently and so that will create problems.
         x_points.resize(n_points);
         seed[0] = aSeed[0];
@@ -79,12 +77,96 @@ MC::MC(int num_points, std::vector<std::vector<double> >& MCbox, int aSeed[3], i
         points_chunk_per_procs = (int)(n_points/branch_size) ;
         printf("branch_rank = %d\t branch_size = %d\n", branch_rank, branch_size);
         printf("points_chunk_per_procs = %d\n", points_chunk_per_procs);
-        if(n_points % branch_size != 0){printf("Warning: number of points=%d are not perfectly divisible by number of processes=%d\n",n_points, branch_size); abort();}
+        if(n_points % branch_size != 0){printf("Warning: Initial number of points=%d are not perfectly divisible by number of processes=%d\n",n_points, branch_size); abort();}
         generate_points_on_lattice();
     }
     
 }
 
+void MC::update_points_chunk_per_procs()
+{
+    points_chunk_per_procs = (int)(n_points/branch_size) ;
+    
+}
+
+void MC::update_box (std::vector<std::vector<double>> new_box)
+{
+    box = new_box;
+}
+
+
+
+void MC::add_points(std::vector<std::vector<double>> new_box, int direction_to_expand_in, int extra_points_per_added_box)
+{
+    std::mt19937 mt_engine_x (seed[0]); //I am using the same seed here but maybe for generating more points we should a different seed than the original one.
+    std::mt19937 mt_engine_y (seed[1]);
+    std::mt19937 mt_engine_z (seed[2]);
+    std::vector<std::vector<double>> added_box_bounds(2);
+    added_box_bounds[0].resize(2);
+    added_box_bounds[1].resize(2);
+    added_box_bounds[0][0] = new_box[direction_to_expand_in][0];
+    added_box_bounds[0][1] = box[direction_to_expand_in][0]; //The original lower bound in the expanded direction is now the upper bound
+    added_box_bounds[1][0] = box[direction_to_expand_in][1];
+    added_box_bounds[1][1] = new_box[direction_to_expand_in][1];
+    
+    if(direction_to_expand_in == 2)
+    {
+        std::uniform_real_distribution<double> dist_x(box[0][0], box[0][1]); //a is included and b is not dist_x [a,b)
+        std::uniform_real_distribution<double> dist_y(box[1][0], box[1][1]);
+        std::uniform_real_distribution<double> dist_z(added_box_bounds[1][0], added_box_bounds[1][1]); //Since only upper box will be added, so just one dist_z
+        int new_total_points = n_points + extra_points_per_added_box;
+        for(size_t i=0; i<extra_points_per_added_box; i++)
+        {
+            std::vector<double> new_point(3,0.0);
+            new_point[0] = dist_x(mt_engine_x);
+            new_point[1] = dist_y(mt_engine_y);
+            new_point[2] = dist_z(mt_engine_z);
+            x_points.push_back(new_point);
+        }
+        n_points = new_total_points;
+    }
+    else
+    {
+        // when direction_to_expand_in != 2 then we will have two boxes added.
+        std::vector<std::uniform_real_distribution<double>> distributions(3);
+        
+        for(int n=0; n<2; n++) //This n is the two symmetric boxes that are being added
+        {
+            for(int i=0; i<3; i++)
+            {
+                if(i != direction_to_expand_in)
+                {
+                    std::uniform_real_distribution<double> dist(box[i][0], box[i][1]);
+                    distributions[i] = dist ;
+                }
+                else
+                {
+                    
+                    std::uniform_real_distribution<double> dist(added_box_bounds[n][0], added_box_bounds[n][1]);
+                    distributions[i] = dist ;
+                }
+                
+            }
+            for(size_t i=0; i<extra_points_per_added_box; i++)
+            {
+                std::vector<double> new_point(3,0.0);
+                new_point[0] = distributions[0](mt_engine_x);
+                new_point[1] = distributions[1](mt_engine_y);
+                new_point[2] = distributions[2](mt_engine_z);
+                x_points.push_back(new_point);
+            }
+            
+        }
+        
+        int new_total_points = n_points + 2*extra_points_per_added_box;
+        n_points = new_total_points;
+    }
+    
+    update_points_chunk_per_procs();
+    update_box(new_box);
+    //This MPI_Barrier at the end of add_points ensures that all processes reach this point i.e. addition of extra points is complete for all processes before we proceed forward.
+    MPI_Barrier(branch_comm);
+}
 
 void MC::generate_points()
 {
@@ -127,8 +209,8 @@ std::vector<double> MC::getMeasures (int n_inside, int n_near_surf, double delta
     double fraction_volume =  ((double)n_inside/(double)n_points);
     //printf("fraction_volume = %10.10f\n",fraction_volume);
     double fraction_SA =  ((double)n_near_surf/(double)n_points);
-    double volume = fraction_volume * BoxVolume ;
-    double volume_near_surf = fraction_SA * BoxVolume ;
+    double volume = fraction_volume * box_volume() ;
+    double volume_near_surf = fraction_SA * box_volume() ;
     double SA = volume_near_surf/(2.0*delta) ;  // (Volume/thickness) = SA
     measures[0] = volume;
     measures[1] = SA;
@@ -154,8 +236,31 @@ std::vector<int> MC::loopPoints (Shape* cluster, double delta)
     int count=0;
     int interior_count = 0;
     int surface_count = 0;
-    int start = branch_rank*points_chunk_per_procs;
-    int end = (branch_rank+1)*points_chunk_per_procs - 1;
+    int start, end;
+    
+    if(n_points % branch_size != 0)
+    {
+        int extra_points = n_points % branch_size;
+        //Adding the remaining extra points to the last branch rank
+        if(branch_rank == branch_size - 1)
+        {
+            start = branch_rank*points_chunk_per_procs;
+            end = (branch_rank+1)*points_chunk_per_procs - 1;
+            end = end + extra_points ;
+        }
+        else
+        {
+            start = branch_rank*points_chunk_per_procs;
+            end = (branch_rank+1)*points_chunk_per_procs - 1;
+            
+        }
+    }
+    else
+    {
+        start = branch_rank*points_chunk_per_procs;
+        end = (branch_rank+1)*points_chunk_per_procs - 1;
+        
+    }
     
     
     for (int i=start ; i <= end; i++)
@@ -227,7 +332,7 @@ std::vector<int> MC::loopPoints (Shape* cluster, double delta)
 //        int_surf_size[1] = (surface_size/3);
         if(int_surf_size[0] >= n_points || int_surf_size[1] >= n_points)
         {
-            printf("num points are larger than total points interior count=%d\t surface count=%d\n", int_surf_size[0], int_surf_size[1]);
+            printf("num of interior or surface points are larger than total points; interior count=%d\t surface count=%d\n", int_surf_size[0], int_surf_size[1]);
             abort();
         }
     }

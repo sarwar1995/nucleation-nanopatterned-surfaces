@@ -39,9 +39,9 @@ void CheckBoundary::ManageBoxBreach(Shape* shape)
     {
         ExpandBox (find_box_breach);
         ManageBoxBreach(cluster);
-        printf("n_points = %d\n", mc_engine->get_num_points());
-        dynamic_box->print_box();
+        //dynamic_box->print_box();
     }
+    
 }
 
 
@@ -95,8 +95,6 @@ void CheckBoundary::ExpandBox (std::vector<int> find_box_breach)
         new_box = dynamic_box->get_box();
         mc_engine->add_points(new_box, direction_to_expand_in, extra_points_per_added_box); //This also updates the box within the MC class
     }
-    
-    
 }
 
 bool CheckBoundary::CheckSpherocylinderBadPatch(double cyl_length, int dB_sign, double patch_width, std::vector<double> centre_left, std::vector<double> centre_right, double projected_radius)

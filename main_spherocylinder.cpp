@@ -145,9 +145,10 @@ int main(int argc, const char * argv[]) {
     std::vector<double> increments({d_Rg, d_Rb , d_cyl_length});
     std::vector<double> patch_widths({pG_width_x, pG_width_y, pB_width_x, pB_width_y});
     
-    EvolveCluster evolve_cluster (&check_boundary,  &mc_engine, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho);
+    EvolveCluster evolve_cluster (&check_boundary,  &mc_engine, surface_ptr, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho);
     
-    double Rg, Rb, cyl_length;
+    double Rg, Rb;
+    double cyl_length, chord_length;
     double N, Volume;
     double SA;
     double projected_SA;
@@ -162,7 +163,10 @@ int main(int argc, const char * argv[]) {
     {
         Rg = 0.0 + i*d_Rg ;
         printf("Rg = %10.10f\n", Rg);
-        cyl_length = 0.0; //  startingRg + i*d_Rg            //sphere's radius
+        
+        cyl_length = 0.0;
+        chord_length = 0.0
+        
         double projected_rg = Rg*sin(theta_cg);
         Spherical_cap GoodCap (centre_good, projected_rg, theta_cg, z_surface);
         Cluster_shape_ptr= &GoodCap;
@@ -196,7 +200,10 @@ int main(int argc, const char * argv[]) {
                 SA = mc_volume_SA[1];
                 projected_SA = GoodCap.projected_SA();
                 N = (Volume * 1e-30) * Rho * avogadro ;
-                fprintf(outputfile, "%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\n" , Rg, cyl_length, N, Volume, SA, projected_SA);
+                double Rb_here = 0.0;
+                int dB_sign_here = 0;
+                fprintf(outputfile, "%10.10f\t%10.10f\t%10.10f\t%10.10f\t%d\t%10.10f\t%10.10f\t%10.10f\t%10.10f\n" , Rg, cyl_length, chord_length, Rb_here, dB_sign_here, N, Volume, SA, projected_SA);
+//                fprintf(outputfile, "%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\t%10.10f\n" , Rg, cyl_length, N, Volume, SA, projected_SA);
             }
         }
         

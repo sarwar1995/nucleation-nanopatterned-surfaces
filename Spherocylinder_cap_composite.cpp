@@ -36,9 +36,15 @@ surface_ptr(SurfacePtr)
     
 }
 
-double Spherocylinder_cap_composite::projected_SA()
+void Spherocylinder_cap_composite::oppositeBoundCross()
 {
-    double result;
+    double single_patch_left_bound = surface_ptr->Patches[0].patch_boundaries()[0];
+    double single_patch_right_bound = surface_ptr->Patches[0].patch_boundaries()[1];
+}
+
+std::vector<double> Spherocylinder_cap_composite::projected_SA()
+{
+    std::vector<double> result (3, 0.0);
 
     double left_circle_h_on_right, right_circle_h_on_left;
     std::vector<double> projected_areas;
@@ -55,22 +61,66 @@ double Spherocylinder_cap_composite::projected_SA()
         
     }
     
+    //This is to check if left circle is bleeding onto the right patch and is beyond the right circle's boundary and vice versa
+    double oppositeBoundDist_left_circle = (single_patch_right_bound - circles[0].get_centre()[0]);
+    double h_badcap_oppositeBound_left_circle = circles[0].get_radius() - oppositeBoundDist_left_circle ;
+    double oppositeBoundDist_right_circle = circles[1].get_centre()[0] - single_patch_left_bound ;
+    double h_badcap_oppositeBound_right_circle = circles[1].get_radius() - oppositeBoundDist_right_circle ;
+    
+    
+    double proj_area_left, proj_area_right;
     
     left_circle_h_on_right = single_patch_left_bound - circles[0].get_centre()[0];
     right_circle_h_on_left = circles[1].get_centre()[0] - single_patch_right_bound;
+    double h_badcap_left_circle = circles[0].get_radius() - (-1*left_circle_h_on_right);
+    double h_badcap_right_circle = circles[1].get_radius() - (-1*right_circle_h_on_left);
+    
+    bool right_on_left = (h_badcap_left_circle < h_badcap_oppositeBound_right_circle) ;
+    bool left_on_right = (h_badcap_right_circle < h_badcap_oppositeBound_left_circle) ;
     
     double segment_area_left_circle = circles[0].segment_area(left_circle_h_on_right);
     double segment_area_right_circle = circles[1].segment_area(right_circle_h_on_left);
-    
     if(isnan(segment_area_left_circle) && (left_circle_h_on_right >= circles[0].get_radius() ||  left_circle_h_on_right <= -circles[0].get_radius())) {segment_area_left_circle = 0.0;}
     
     if(isnan(segment_area_right_circle) && (right_circle_h_on_left >= circles[1].get_radius() || right_circle_h_on_left <= -circles[1].get_radius())) {segment_area_right_circle = 0.0;}
     
+    
+    if(h_badcap_oppositeBound_left_circle > 0 && h_badcap_oppositeBound_right_circle > 0) //This shows that each of the two caps have intersection with the opposite boundary of the good patch. ONLY possible when dB_sign is -1.
+    {
+        if(right_on_left &&  left_on_right) //This shows that the opposite caps intersection is more prominent (boundary with the patch i.e. area) on a side than its original cap.
+        {
+            proj_area_left = circles[1].segment_area(oppositeBoundDist_right_circle);
+            
+            proj_area_right = circles[0].segment_area(oppositeBoundDist_left_circle);
+            
+        }
+        else if((right_on_left && !left_on_right) || (!right_on_left && left_on_right))
+        {
+            printf("Symmetry is broken for bad patch caps in Spherocylinder right_on_left=%d\t left_on_right=%d\n", right_on_left, left_on_right); abort();
+        }
+        else
+        {
+             proj_area_left = circles[0].area() - segment_area_left_circle;
+             proj_area_right = circles[1].area() - segment_area_right_circle;
+        }
+    }
+    else
+    {
+         proj_area_left = circles[0].area() - segment_area_left_circle;
+         proj_area_right = circles[1].area() - segment_area_right_circle;
+    }
+    
+    
+    
+    
+//    printf("seg_area_left = %10.10f\t seg_area_right = %10.10f\n ", segment_area_left_circle, segment_area_right_circle);
+    
     //        printf("[segment_area_i_on_ngbleft segment_area_i_on_ngbright] = [%10.5f %10.5f]\n", segment_area_i_on_ngbleft, segment_area_i_on_ngbright);
     
-    double proj_area_left = circles[0].area() - segment_area_left_circle;
-    double proj_area_right = circles[1].area() - segment_area_right_circle;
-    result = spherocylinder_proj_area + proj_area_left + proj_area_right ;
+    
+    result[0] = proj_area_left;
+    result[1] = spherocylinder_proj_area;
+    result[2] = proj_area_right ;
     return result;
 }
 

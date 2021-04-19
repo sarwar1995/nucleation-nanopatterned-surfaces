@@ -65,3 +65,35 @@ double free_energy_singlecap(double Rho, double Mu, double Sigma, double volume,
     G = G/(kb*T) ;
     return G;
 }
+
+double free_energy_spherocylinder (double Rho, double Mu, double Sigma, double volume, double SA, std::vector<double>& projected_SA, double theta_good, double theta_bad, double T)
+{
+    double G;
+    double Vcomp = -1*volume* Rho * Mu;
+    double Scomp = Sigma*SA;
+    
+    double theta_patch ;
+    double Sproj_comp = 0;
+    for(int p=0; p<projected_SA.size(); p++)
+    {
+        if (p==0 || p==2)
+        {
+            theta_patch = theta_bad;
+        }
+        else if (p==1)
+        {
+             theta_patch = theta_good;
+        }
+        else
+        {
+            printf("There are more than 3 projected SAs for spherocylinder \n"); abort();
+        }
+        Sproj_comp = Sproj_comp + cos(theta_patch)*projected_SA[p];
+    }
+    
+    Sproj_comp = -Sigma*Sproj_comp;
+    //-Sigma*(cos(theta_good)*SA_proj_good + cos(theta_bad)*SA_proj_bad_1 + cos(theta_bad)*SA_proj_bad_2);
+    G = Vcomp + Scomp + Sproj_comp;
+    G = G/(kb*T) ;
+    return G;
+}

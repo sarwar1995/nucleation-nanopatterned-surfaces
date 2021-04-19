@@ -653,8 +653,6 @@ int main(int argc, char * argv[]) {
         MPI_Gather(&projected_SA_nelements, 1, MPI_INT, &projected_SA_counts[0], 1, MPI_INT, 0, roots_comm);
         MPI_Gather(&radii_nelements, 1, MPI_INT, &radii_counts[0], 1, MPI_INT, 0, roots_comm);
 
-
-
         int disps[roots_size];
         int projected_SA_disps[roots_size];
         int radii_disps[roots_size];

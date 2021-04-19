@@ -27,10 +27,10 @@ double vector_norm (std::vector<double>&);
 
 void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, int db, int dg_secondary, double volume, double SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
 
-void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double volume, double SA, double proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
-
+void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double chord_length, double Rb, int dB, double volume, double SA, std::vector<double> proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
 
 void print_NGDataFile (std::vector<std::vector<double> >&, FILE*);
+void print_NGDataFile_spherocylinder (std::vector<std::vector<double> >&, FILE*);
 
 void addQuant(std::vector<double> &destination, std::vector<double> &origin, int size_origin);
 

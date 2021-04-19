@@ -100,7 +100,7 @@ double Circle::segment_area (double h)
     //When it is positive the minor segment area is calculated and when it is negative the major segment area is calculated
     double Rsquare = radius*radius;
     double theta = 2 * acos(h/radius);
-    printf("theta/2 for segment area = %10.10f\n", theta/2.0);
+//    printf("theta/2 for segment area = %10.10f\t h=%10.10f\t radius=%10.10f\n", (theta/2.0), h, radius);
     double area_triangle = h*sqrt(Rsquare - h*h);
     double area_seg = sector_area (theta) - area_triangle;
     return area_seg;

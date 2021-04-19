@@ -30,6 +30,13 @@ DynamicBox::DynamicBox(std::vector<std::vector<double>> existing_box, double len
 }
 
 
+void DynamicBox::updateDimensions()
+{
+    dimensions[0] = box[0][1] - box[0][0];
+    dimensions[1] = box[1][1] - box[1][0];
+    dimensions[2] = box[2][1] - box[2][0];
+}
+
 int DynamicBox::add_fix_box(int direction_to_expand_in, double density_of_points)
 {
     //This function adds a fixed size box symmetrically (except in z) to the existing box in the direction that expansion needs to happen in.
@@ -74,6 +81,7 @@ int DynamicBox::add_fix_box(int direction_to_expand_in, double density_of_points
     box[direction_to_expand_in][1] = new_upper_bound;
     
     particles_added_per_additional_box = (int) (volume_added_per_additional_box * density_of_points) ;
+    updateDimensions();
     return particles_added_per_additional_box;
     
 }

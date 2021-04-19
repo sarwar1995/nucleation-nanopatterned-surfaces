@@ -18,4 +18,6 @@ void add_Volume_SA (std::vector<double> Radii, std::vector<double> mc_volume_SA,
 
 void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> db_global_array, std::vector<int> dg_secondary_global_array , FILE* VolumeSAouput);
 
+void add_Volume_SA_spherocylinder_parallel(std::vector<int> dB_global_array, std::vector<double> Number_particles_global, std::vector<double> Volume_global_array, std::vector<double> SA_global_array, std::vector<double> projected_global_SA_array, std::vector<double> Rg_global_array, std::vector<double> Rb_global_array, std::vector<double> cyl_length_global_array, std::vector<double> chord_length_global_array, FILE* outputfile);
+
 #endif /* VolumeSA_calculations_hpp */
