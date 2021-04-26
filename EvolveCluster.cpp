@@ -34,18 +34,24 @@ EvolveCluster::~EvolveCluster()
 //
 //}
 
-EvolveCluster::EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho, int rank, int color, int color_roots, std::vector<int>& dB, std::vector<double>& particles, std::vector<double>& Volume, std::vector<double>& SA, std::vector<double>& projected_SA, std::vector<double>& Rg, std::vector<double>& Rb, std::vector<double>& cyl_length, std::vector<double>& chord_length):
-check_boundary(boundary_check), mc_engine(mc), theta_cg(theta_good) ,theta_cb(theta_bad), z_surface(z), mc_volume_SA(volume_SA_mc), delta(Delta), Rho(rho), surface_ptr(surface), Rank(rank), Color(color), Color_roots(color_roots), dB_array(dB), Number_particles(particles), Volume_array(Volume), SA_array(SA), projected_SA_array(projected_SA), Rg_array(Rg), Rb_array(Rb), cyl_length_array(cyl_length), chord_length_array(chord_length)
+
+EvolveCluster::EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho, int rank, std::vector<int>& Worker_colors_per_level, std::vector<int>& Num_workers_per_groups_per_level
+, int color_roots, std::vector<int>& dB, std::vector<double>& particles, std::vector<double>& Volume, std::vector<double>& SA, std::vector<double>& projected_SA, std::vector<double>& Rg, std::vector<double>& Rb, std::vector<double>& cyl_length, std::vector<double>& chord_length):
+check_boundary(boundary_check), mc_engine(mc), theta_cg(theta_good) ,theta_cb(theta_bad), z_surface(z), mc_volume_SA(volume_SA_mc), delta(Delta), Rho(rho), surface_ptr(surface), Rank(rank),
+worker_colors_per_level(Worker_colors_per_level),
+num_workers_per_groups_per_level(Num_workers_per_groups_per_level),
+Color_roots(color_roots),
+dB_array(dB), Number_particles(particles), Volume_array(Volume), SA_array(SA), projected_SA_array(projected_SA), Rg_array(Rg), Rb_array(Rb), cyl_length_array(cyl_length), chord_length_array(chord_length)
 {
     Rb_max = maximum_limits[1];
     d_Rb = increments[1];
     pG_width_x = patch_widths[0];
     pG_width_y = patch_widths[1];
     
-//    printf("Rb_max = %10.10f\t d_Rb= %10.10f\t  pG_width_x= %10.10f\t  pG_width_y= %10.10f\n", Rb_max, d_Rb, pG_width_x, pG_width_y);
-    printf("Evolve cluster initialized, color=%d\t color_roots=%d\t rank=%d\n", Color, Color_roots, Rank);
+    //    printf("Rb_max = %10.10f\t d_Rb= %10.10f\t  pG_width_x= %10.10f\t  pG_width_y= %10.10f\n", Rb_max, d_Rb, pG_width_x, pG_width_y);
     
 }
+
 
 
 
@@ -142,8 +148,9 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder (SpheroCylinder* spherocylind
 
 void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* spherocylinder, Shape* Cluster_shape_ptr, double cyl_length, double d_chord_length, double Rg, FILE* outputfile, FILE* output_points_file)
 {
+    int Color_per_group = worker_colors_per_level[3] % 2; //since worker color is for all groups i.e from 0 to 15 (for 16 groups), we assign even workers a color of 0 and odd workers a color of 1.
     double chord_length_max = cyl_length;
-    int n_chord_length = (int)((chord_length_max - 0.0)/d_chord_length) + 1 ;
+    int n_chord_length = (int)((chord_length_max - 0.0)/d_chord_length); // + 1 ;
     
     double chord_length;
     double Rb, projected_rb_min, projected_rb, Rb_min;
@@ -153,32 +160,37 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* sph
     c_bad_left[1] = 0.0; c_bad_right[1] = 0.0;
     c_bad_left[2] = z_surface; c_bad_right[2] = z_surface;
     
-    for(int j=0; j < n_chord_length; j++)
+    std:vector<int> Chord_loop_start_end = getLoopStartEnd (n_chord_length, worker_colors_per_level[2]); //Worker level if 2 for chord length.
+//    printf("Chord loop start end = %d %d %d\n", (int)Chord_loop_start_end.size(), Chord_loop_start_end[0], Chord_loop_start_end[1]);
+    
+    for(int j=Chord_loop_start_end[0]; j <= Chord_loop_start_end[1]; j++)
     {
         chord_length = 0.0 + j * d_chord_length;
         projected_rb_min = 0.5 * chord_length ;
         
         Rb_min = projected_rb_min/(double)sin(theta_cb) ; //Be careful to not have a theta that is 0 or 180
-        len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) + 1;
+        len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) ;//+ 1;
         int dB_sign;
         
         // 1: centre on bad patches
         // -1: centres on good patches
-        if (Color == 0)
+        if (Color_per_group == 0)
         {
             dB_sign = -1;
         }
-        else if (Color == 1)
+        else if (Color_per_group == 1)
         {
             dB_sign = 1;
         }
         
-        for(int l=0; l<len_Rb; l++)
+        std::vector<int> Rb_loop_start_end = getLoopStartEnd (len_Rb, worker_colors_per_level[4]); //Worker level if 2 for
+        
+        for(int l=Rb_loop_start_end[0]; l <= Rb_loop_start_end[1]; l++) //len_Rb //Adding another level for Rb parallelization
         {
             Rb = Rb_min + l * d_Rb ;
-            if (Color_roots==0){
-                printf("cyl length =%10.10f Rb = %10.10f\t chord_length = %10.10f\t dB_sign=%d\n", cyl_length, Rb, chord_length, dB_sign);
-            }
+//            if (Color_roots==0){
+//                printf("cyl length =%10.10f Rb = %10.10f\t chord_length = %10.10f\t dB_sign=%d\n", cyl_length, Rb, chord_length, dB_sign);
+//            }
             projected_rb = Rb * sin(theta_cb);
             
             double inside_sq = projected_rb*projected_rb - (0.5 * chord_length *0.5 * chord_length);
@@ -221,7 +233,7 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* sph
                 //This AnalytProjSurfAreaWithPlaneIntersect() is incorrect
                 std::vector<double> projected_SA = spherocylinder_composite.projected_SA();
                 
-                if(Color_roots == 0 && (Color==0 || Color==1))
+                if(Color_roots == 0) //&& (Color_per_group==0 || Color_per_group==1)
                 {
                     double N = (Volume * 1e-30) * Rho * avogadro ;
                     
@@ -245,10 +257,10 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* sph
                     addQuant(projected_SA_array, projected_SA, (int)projected_SA.size());
                     //fprintf(outputfile, "%10.10f\t%10.10f\t%10.10f\t%10.10f\t%d\t%10.10f\t%10.10f\t%10.10f\t%10.10f\n" , Rg, cyl_length, chord_length, Rb, dB_sign, N, Volume, SA, projected_SA);
                 }
-                else if (Color !=0 && Color !=1)
-                {
-                    printf("More than two groups for two bad patch case, Color=%d\n", Color); abort();
-                }
+//                else if (Color_per_group !=0 && Color_per_group !=1)
+//                {
+//                    printf("More than two groups for two bad patch case, Color=%d\n", Color_per_group); abort();
+//                }
             }
             
         }

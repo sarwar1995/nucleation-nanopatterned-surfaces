@@ -70,4 +70,6 @@ void print_point(std::vector<double>);
 
 void print_points_tofile(std::vector<std::vector<double> >, FILE*);
 
+
+std::vector<int> getLoopStartEnd (int length, int level_color);
 #endif /* miscformulas_hpp */

@@ -17,6 +17,7 @@
 #include "Shape.hpp"
 #include "Spherocylinder_cap_composite.hpp"
 #include "FreeEnergy.hpp"
+#include "miscformulas.hpp"
 
 class EvolveCluster{
 public:
@@ -24,8 +25,10 @@ public:
     ~EvolveCluster();
 //    EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho);
     
-    EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho, int rank, int color, int color_roots, std::vector<int>& dB, std::vector<double>& particles, std::vector<double>& Volume, std::vector<double>& SA, std::vector<double>& projected_SA, std::vector<double>& Rg, std::vector<double>& Rb, std::vector<double>& cyl_length, std::vector<double>& chord_length);
-    
+//    EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho, int rank, int color, int color_roots, std::vector<int>& dB, std::vector<double>& particles, std::vector<double>& Volume, std::vector<double>& SA, std::vector<double>& projected_SA, std::vector<double>& Rg, std::vector<double>& Rb, std::vector<double>& cyl_length, std::vector<double>& chord_length);
+//    
+    EvolveCluster(CheckBoundary* boundary_check,  MC* mc, Surface* surface, std::vector<double> volume_SA_mc, std::vector<double> maximum_limits, std::vector<double> increments, double theta_good, double theta_bad, std::vector<double> patch_widths, double z, double Delta, double rho, int rank, std::vector<int>& Worker_colors_per_level, std::vector<int>& Num_workers_per_groups_per_level
+                  , int color_roots, std::vector<int>& dB, std::vector<double>& particles, std::vector<double>& Volume, std::vector<double>& SA, std::vector<double>& projected_SA, std::vector<double>& Rg, std::vector<double>& Rb, std::vector<double>& cyl_length, std::vector<double>& chord_length);
     
     
     void EvolveGoodCap ();
@@ -45,7 +48,9 @@ protected:
     double theta_cb, theta_cg;
     double Rb_max, d_Rb, pG_width_x, pG_width_y, z_surface;
     double delta, Rho;
-    int Rank, Color, Color_roots;
+    int Rank, Color_roots, Color; //Here Color is used for the case when there is only one level
+    std::vector<int> &worker_colors_per_level;
+    std::vector<int> &num_workers_per_groups_per_level;
     
     std::vector<int>&dB_array;
     std::vector<double>& Number_particles, &Volume_array, &SA_array, &projected_SA_array;

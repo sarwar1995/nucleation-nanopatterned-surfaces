@@ -18,6 +18,8 @@
 #include "EvolveCluster.hpp"
 #include "VolumeSA_calculations.hpp"
 #include <mpi.h>
+#include <math.h>
+#include "miscformulas.hpp"
 
 using namespace std;
 
@@ -35,6 +37,8 @@ Patch setup_patch(double width_x, double width_y, double x_coordinate_centre, do
     return patch ;
 }
 
+
+
 int myRank, nProcs;
 int main(int argc, char * argv[]) {
     
@@ -49,25 +53,67 @@ int main(int argc, char * argv[]) {
      BranchSize is taken as an input.
      This MPI_Comm_split uses color to assign a communicator to each process and their original rank as the key to assign a rank within the communicator */
     
+    /*
+     Currently we have have 5 levels of parallelization, where at each level the loop is broken into two.
+     1. Rg loop
+     2. Cylinder loop
+     3. Chord loop
+     4. dB sign i.e. whether bad cap centre is on good patch or bad patch
+     5. Rb loop
+     NOTE: Each of the loops divide the total available workers from the previous level into 2. So as such at each level n, where the n=1...5 there are 2^n groups of workers available such that the workers in any group of the last level works on the MC volume calculation part.
+     */
+    
     int BranchSize;
+    int levels;
     if(myRank == 0)
     {
         /* Reading BranchSize from command line */
-        BranchSize  = atof(argv[1]);
+        BranchSize  = atoi(argv[1]);
+        levels = atoi(argv[2]);
     }
+    int start_index = 1 ;
     MPI_Bcast (&BranchSize, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast (&levels, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
-    int color = myRank/BranchSize;
-    printf("rank = %d\t color = %d\n", myRank, color);
-    MPI_Comm branch_comm;
-    MPI_Comm_split(MPI_COMM_WORLD, color, myRank, &branch_comm);
-    int branch_rank, branch_size;
-    MPI_Comm_rank(branch_comm, &branch_rank);
-    MPI_Comm_size(branch_comm, &branch_size);
-    printf("original rank=%d\t branch_rank=%d branch_size=%d\n", myRank, branch_rank, branch_size);
+      //Splitting each of the 4 loops i.e. Rg, Cyl length, chord length, and dB={1, -1} into BranchSize=2 branches.
+
+    std::vector<int> worker_colors_per_level (levels); //This will have the color of each worker at each level.
+    std::vector<int> num_workers_per_groups_per_level (levels);
+    for(int i=0; i < levels; i++)
+    {
+        int group_size = pow(BranchSize, i+1);
+        num_workers_per_groups_per_level[i] = nProcs/group_size; //Ensure that they are multiples
+        worker_colors_per_level[i] = myRank/num_workers_per_groups_per_level[i];
+        printf("level =%d\t rank = %d\t worker_colors_per_level = %d\n", i+1, myRank, worker_colors_per_level[i]);
+    }
+
+//    int color = myRank/BranchSize;
+    
+    
+    /*
+     MPI_Comm branch_comm_level_Rg; //First level of branch communicators that will work on the parallelised Rg loop
+    MPI_Comm branch_comm_level_cyl; //Second level of branch communicators that will work on the parallelised cyl length loop
+    MPI_Comm branch_comm_level_chord; //Third level of branch communicators that will work on the parallelised chord loop
+    MPI_Comm branch_comm_level_dB; //This is the last level of branch communicators that will work on the parallel MC code
+    */
+    std::vector<MPI_Comm> branch_comm_levels(levels);
+    std::vector<int> level_branch_rank(levels);
+    std::vector<int> level_branch_size(levels);
+    for(int i=0; i < levels; i++)
+    {
+        MPI_Comm_split(MPI_COMM_WORLD, worker_colors_per_level[i], myRank, &branch_comm_levels[i]); //color
+        
+        MPI_Comm_rank(branch_comm_levels[i], &level_branch_rank[i]);
+        MPI_Comm_size(branch_comm_levels[i], &level_branch_size[i]);
+        printf("level = %d\t original rank=%d\t branch_rank=%d branch_size=%d\n", i, myRank, level_branch_rank[i], level_branch_size[i]);
+    }
+    
+    //MPI_Comm_split(MPI_COMM_WORLD, worker_colors_per_level[levels-1], myRank, &branch_comm); //color
+    
     
     /* Creating another communicator containing the roots of each communicator so that V, SA..etc, data can be transferred from them to the original root */
-    int color_roots = ( myRank%BranchSize == 0) ? myRank%BranchSize : 1;
+    //int color_roots = ( myRank%BranchSize == 0) ? myRank%BranchSize : 1;
+    int color_roots = ( myRank%num_workers_per_groups_per_level[levels-1] == 0) ? 0 : 1 ;
     MPI_Comm roots_comm;
     MPI_Comm_split(MPI_COMM_WORLD, color_roots, myRank, &roots_comm);
     int roots_rank, roots_size;
@@ -104,29 +150,30 @@ int main(int argc, char * argv[]) {
     FILE* outputfile;
     FILE* output_points_file;
     
+    
     if(myRank == 0)
     {
         /* Reading all variables from command line */
-        pG_width_x  = atof(argv[2]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pG_width_y  = atof(argv[3]);     //y width of the good patches (same for all good patches) (Angstroms)
-        pB_width_x  = atof(argv[4]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pB_width_y  = atof(argv[5]);     //y width of the good patches (same for all good patches) (Angstroms)
-        theta_cg    = atof(argv[6]);       //Good patch contact angle
-        theta_cb    = atof(argv[7]);       //Bad patch contact angle
-        d_Rg        = atof(argv[8]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
-        d_Rb        = atof(argv[9]);       //increments in bad patch cap radius  (Angstroms)
-        d_cyl_length= atof(argv[10]);
-        d_chord_length= atof(argv[11]);
-        Rg_max      = atof(argv[12]);       //maximum limit of good patch cap.    (Angstroms)
-        Rb_max      = atof(argv[13]);
-        cyl_max     = atof(argv[14]);        //maximum limit of bad patch cap      (Angstroms)
-        point_density = atof(argv[15]);     // Constant point density for MC. (points/Angstrom^3)
-        aSeed[0]    = atoi(argv[16]);       //Seed in x-direction for MC
-        aSeed[1]    = atoi(argv[17]);       //Seed in y-direction for MC
-        aSeed[2]    = atoi(argv[18]);       //Seed in z-direction for MC
-        delta       = atof(argv[19]);      //buffer region width=(2*\delta) for surface points (Angstroms)
-        Rho         = atof(argv[20]);   //Moles per m3
-        num_patches = atoi(argv[21]);
+        pG_width_x  = atof(argv[start_index +2]);     //x width of the good patches (same for all good patches) (Angstroms)
+        pG_width_y  = atof(argv[start_index +3]);     //y width of the good patches (same for all good patches) (Angstroms)
+        pB_width_x  = atof(argv[start_index +4]);     //x width of the good patches (same for all good patches) (Angstroms)
+        pB_width_y  = atof(argv[start_index +5]);     //y width of the good patches (same for all good patches) (Angstroms)
+        theta_cg    = atof(argv[start_index +6]);       //Good patch contact angle
+        theta_cb    = atof(argv[start_index +7]);       //Bad patch contact angle
+        d_Rg        = atof(argv[start_index +8]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
+        d_Rb        = atof(argv[start_index +9]);       //increments in bad patch cap radius  (Angstroms)
+        d_cyl_length= atof(argv[start_index +10]);
+        d_chord_length= atof(argv[start_index +11]);
+        Rg_max      = atof(argv[start_index +12]);       //maximum limit of good patch cap.    (Angstroms)
+        Rb_max      = atof(argv[start_index +13]);
+        cyl_max     = atof(argv[start_index +14]);        //maximum limit of bad patch cap      (Angstroms)
+        point_density = atof(argv[start_index +15]);     // Constant point density for MC. (points/Angstrom^3)
+        aSeed[0]    = atoi(argv[start_index +16]);       //Seed in x-direction for MC
+        aSeed[1]    = atoi(argv[start_index +17]);       //Seed in y-direction for MC
+        aSeed[2]    = atoi(argv[start_index +18]);       //Seed in z-direction for MC
+        delta       = atof(argv[start_index +19]);      //buffer region width=(2*\delta) for surface points (Angstroms)
+        Rho         = atof(argv[start_index +20]);   //Moles per m3
+        num_patches = atoi(argv[start_index +21]);
         extension_length = atof(argv[22]);
         tag.assign(argv[23]);
         printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
@@ -200,7 +247,7 @@ int main(int argc, char * argv[]) {
     // Two separate dynamic box instances are instantiated for the two branches. 
     DynamicBox dynamic_box (stripes.box, extension_length);
     
-    MC mc_engine (n_points, stripes.box, aSeed, branch_comm);
+    MC mc_engine (n_points, stripes.box, aSeed, branch_comm_levels[levels-1]);
     MC* mc_engine_ptr = &mc_engine;
     
     CheckBoundary check_boundary (surface_ptr, mc_engine_ptr , &dynamic_box, point_density);
@@ -218,7 +265,11 @@ int main(int argc, char * argv[]) {
     std::vector<double> Rg_array, Rb_array, cyl_length_array, chord_length_array;
     
     if (color_roots==0){printf("Volume_array size before anything = %d\n", (int)Volume_array.size());}
-    EvolveCluster evolve_cluster(check_boundary_ptr,  mc_engine_ptr, surface_ptr, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho, myRank, color, color_roots, dB_array, Number_particles, Volume_array, SA_array,  projected_SA_array,  Rg_array, Rb_array, cyl_length_array, chord_length_array);
+   
+    EvolveCluster evolve_cluster(check_boundary_ptr,  mc_engine_ptr, surface_ptr, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho, myRank, worker_colors_per_level, num_workers_per_groups_per_level, color_roots, dB_array, Number_particles, Volume_array, SA_array,  projected_SA_array,  Rg_array, Rb_array, cyl_length_array, chord_length_array);
+//    
+    
+//    EvolveCluster evolve_cluster(check_boundary_ptr,  mc_engine_ptr, surface_ptr, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho, myRank, color, color_roots, dB_array, Number_particles, Volume_array, SA_array,  projected_SA_array,  Rg_array, Rb_array, cyl_length_array, chord_length_array);
     
     /* Setting up required variables and output data structures*/
     //Rg, cyl_length, chord_length, Rb_here, dB_sign_here, N, Volume, SA, projected_SA
@@ -234,14 +285,26 @@ int main(int argc, char * argv[]) {
     std::vector<int> stripes_bounds; //array of (0,1) to check crossing of boundaries
     std::vector<int> box_breach; //array of (0,1) to check box surface breach
     
-    int len_Rg = (int) ((Rg_max-0.0)/d_Rg) + 1;
-    int len_cyl = (int) ((cyl_max-0.0)/d_cyl_length) + 1;
-    for(int i = 0 ; i< len_Rg; i++) // 1
-    {
+    int len_Rg = (int) ((Rg_max-0.0)/d_Rg); //+ 1; Removed the addition of one because equality now in for loop.
+    int len_cyl = (int) ((cyl_max-0.0)/d_cyl_length); //+ 1;
+    std::vector<int> Rg_loop_start_end, Cyl_loop_start_end;
     
+    Rg_loop_start_end = getLoopStartEnd (len_Rg, worker_colors_per_level[0]);
+    printf("rank = %d Rg loop start end = %d %d %d\n", myRank, (int)Rg_loop_start_end.size(), Rg_loop_start_end[0], Rg_loop_start_end[1]);
+    
+    Cyl_loop_start_end = getLoopStartEnd (len_cyl, worker_colors_per_level[1]);
+    printf("rank = %d Cyl loop start end = %d %d %d\n", myRank, (int)Cyl_loop_start_end.size(), Cyl_loop_start_end[0], Cyl_loop_start_end[1]);
+    
+    
+    for(int i = Rg_loop_start_end[0] ; i<= Rg_loop_start_end[1]; i++) //  len_Rg
+    {
+        
+//        printf("Inside Rg loop [%d %d] rank = %d\n", Rg_loop_start_end[0], Rg_loop_start_end[1], myRank);
+        
+        
         Rg = 0.0 + i*d_Rg ;
 
-        if(myRank == 0)
+        if(level_branch_rank[0] == 0)
         {
             printf("Rg = %10.10f\n", Rg);
             
@@ -251,6 +314,7 @@ int main(int argc, char * argv[]) {
         chord_length = 0.0;
         
         double projected_rg = Rg*sin(theta_cg);
+        
         Spherical_cap GoodCap (centre_good, projected_rg, theta_cg, z_surface);
         Cluster_shape_ptr= &GoodCap;
         check_boundary.ManageBoxBreach(Cluster_shape_ptr);
@@ -262,14 +326,15 @@ int main(int argc, char * argv[]) {
         {
             if((cPatchBounds[0] > shape_xy_spread[0] - d_Rg*sin(theta_cg)) && (cPatchBounds[0] <= shape_xy_spread[0]) && (cPatchBounds[1] < shape_xy_spread[1] + d_Rg*sin(theta_cg)) && (cPatchBounds[1] >= shape_xy_spread[1])  )
             {
-                if(myRank == 0)
+                if(level_branch_rank[0] == 0)
                 {printf("Inside spherocylinder patch \n");}
-                for(int j = 0 ; j< len_cyl; j++) //j=0 is just the spherical cap that touches the boundary
+                
+                for(int j = Cyl_loop_start_end[0] ; j<= Cyl_loop_start_end[1]; j++) //j=0 is just the spherical cap that touches the boundary
                 {
                     cyl_length = 0.0 + j*d_cyl_length;
                     
-//                    if(myRank == 0)
-//                    {printf("cyl_length = %10.10f\n", cyl_length);}
+                    if(level_branch_rank[1] == 0)
+                    {printf("cyl_length = %10.10f\n", cyl_length);}
                     std::vector<double> normal_to_the_circle({0.0 , 1.0, 0.0});
                     
                     SpheroCylinder sphero_cylinder (GoodCap, cyl_length, normal_to_the_circle, z_surface);
@@ -280,9 +345,10 @@ int main(int argc, char * argv[]) {
             }
             else
             {
-                if(color == 0) //myRank == 0
+                if(worker_colors_per_level[levels-1] == 0) //myRank == 0
                 {
                 //Only spherical cap
+                    printf("only cap worker = %d\n", myRank);
                     mc_volume_SA = mc_engine.calc_volume_SA(Cluster_shape_ptr, delta);
                     Volume = mc_volume_SA[0]; //GoodCap.getVolume();
                     SA = mc_volume_SA[1];
@@ -309,7 +375,7 @@ int main(int argc, char * argv[]) {
                         
                             SA_array.push_back(SA);
                         
-                            //printf("Volume_array size = %d SA_array = %d Rg_array size=%d only color 0\n", (int)Volume_array.size(), (int)SA_array.size(), (int) Rg_array.size());
+                            printf("root worker rank = %d Volume_array size = %d SA_array = %d Rg_array size=%d only color 0\n", myRank, (int)Volume_array.size(), (int)SA_array.size(), (int) Rg_array.size());
                         
                             std::vector<double> projected_SA_array_here ({0.0, projected_SA, 0.0});
                             addQuant(projected_SA_array, projected_SA_array_here, (int)projected_SA_array_here.size());
@@ -426,7 +492,14 @@ int main(int argc, char * argv[]) {
 //
 //    }
     
-    MPI_Comm_free(&branch_comm);
+    
+    for(int q=0; q<levels; q++)
+    {
+        MPI_Comm_free(&branch_comm_levels[q]);
+    }
+    
+    MPI_Comm_free(&roots_comm);
+    //MPI_Comm_free(&branch_comm);
     MPI_Finalize();
     return EXIT_SUCCESS;
 

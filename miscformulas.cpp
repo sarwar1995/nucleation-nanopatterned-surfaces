@@ -279,7 +279,8 @@ void print_NGDataFile_spherocylinder (std::vector<std::vector<double> >& NArray_
     int lenN = (int) NArray_quant.size();
     for(int i = 0; i<lenN ; i++)
     {
-        
+        //NArray_quant = [N, G, Rg, cyl_length, chord_length, Rb, dB, volume, SA, proj_SA [0, 1, 2]]
+    
         fprintf(NGDataFile,"%10.5f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.2f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\t %10.10f\n" ,NArray_quant[i][0],NArray_quant[i][1], NArray_quant[i][2], NArray_quant[i][3], NArray_quant[i][4], NArray_quant[i][5], NArray_quant[i][6], NArray_quant[i][7] * 1e30, NArray_quant[i][8] * 1e20, NArray_quant[i][9] * 1e20, NArray_quant[i][10] * 1e20, NArray_quant[i][11] * 1e20);
     }
 }
@@ -312,4 +313,46 @@ std::vector<double> add_double_vectors (std::vector<double>& a, std::vector<doub
         }
     }
     return result;
+}
+
+std::vector<int> getLoopStartEnd (int length, int level_color)
+{
+    //Here I am using branch size as 2 because we are dividing into two branches at each level so making a binary division at each node.
+    std::vector<int> loop_end_points (2);
+    int start, end;
+    int branch_rank;
+    int branch_size = 2;
+    int chunk_per_process = (int)(length/branch_size) ;
+    
+    if (level_color % 2 == 0)
+    {
+        branch_rank = 0;
+    }
+    else {branch_rank = 1;}
+    
+    if(length % branch_size != 0)
+    {
+        int extra_points = length % branch_size;
+        //Adding the remaining extra points to the last branch rank
+        if(branch_rank == branch_size - 1)
+        {
+            start = branch_rank*chunk_per_process;
+            end = (branch_rank+1)*chunk_per_process - 1;
+            end = end + extra_points ;
+        }
+        else
+        {
+            start = branch_rank*chunk_per_process;
+            end = (branch_rank+1)*chunk_per_process - 1;
+        }
+    }
+    else
+    {
+        start = branch_rank*chunk_per_process;
+        end = (branch_rank+1)*chunk_per_process - 1;
+        
+    }
+    loop_end_points[0] = start;
+    loop_end_points[1] = end;
+    return loop_end_points;
 }

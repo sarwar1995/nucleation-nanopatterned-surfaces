@@ -252,7 +252,6 @@ std::vector<int> MC::loopPoints (Shape* cluster, double delta)
         {
             start = branch_rank*points_chunk_per_procs;
             end = (branch_rank+1)*points_chunk_per_procs - 1;
-            
         }
     }
     else
@@ -435,18 +434,44 @@ void MC::print_points(FILE * pointsFile)
     }
 }
 
-//void MC::print_surf_points(FILE * SurfpointsFile)
-//{
-//    std::set<std::vector<double> >::iterator it;
-//    int count=0;
-//    
-//    for(it=surface_points.begin(); it!=surface_points.end(); it++)
-//    {
-//        count++;
-//        std::vector<double> point = *it ;
-//        fprintf(SurfpointsFile,"%d\t%10.10f\t%10.10f\t%10.10f\n",count, point[0], point[1], point[2]);
-//    }
-//}
+void MC::print_surf_points(Shape* cluster, double delta, FILE * SurfpointsFile)
+{
+    if(branch_rank == 0)
+    {
+        std::set<std::vector<double> >::iterator it;
+        std::vector <double> point (3, 0.0);
+        for (int i=0 ; i < n_points; i++)
+        {
+            point[0] = x_points[i][0];
+            point[1] = x_points[i][1];
+            point[2] = x_points[i][2];
+            int isinside = cluster->isInside(point);
+            if(isinside)
+            {
+                //interior_count++;
+                //addPoint(interior_points_process, point);
+//                interior_points.insert(point);
+            }
+
+            int nearSurf = cluster->nearSurface(point, delta);
+            if(nearSurf)
+            {
+                //surface_count++;
+                //addPoint(surface_points_process, point);
+                surface_points.insert(point);
+
+            }
+        }
+        int count = 0;
+        for(it=surface_points.begin(); it!=surface_points.end(); it++)
+        {
+            count++;
+            std::vector<double> point = *it ;
+            fprintf(SurfpointsFile,"%d\t%10.10f\t%10.10f\t%10.10f\n",count, point[0], point[1], point[2]);
+        }
+    }
+
+}
 
 
 //void MC::print_volume_points(FILE* VolumePointsFile)

@@ -39,8 +39,8 @@ public:
     inline double box_volume() {return ((box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]));}
     
     //Sets of Interior and surface points: Using sets to improve uniqueness checking. For the continuos update of volume and surface area by just checking the surface points. Only works for growth of the same type of cluster.
-    std::vector<std::vector<double> > interior_points;
-    std::vector<std::vector<double> > surface_points;
+    std::set<std::vector<double> > interior_points;
+    std::set<std::vector<double> > surface_points;
     
     
     //Volume and SA calculation
@@ -52,7 +52,7 @@ public:
     
     //Miscellaneous I/O
     void print_points(FILE*);
-    void print_surf_points(FILE*);
+    void print_surf_points(Shape* cluster, double delta, FILE*);
     void print_volume_points(FILE*);
     
     //Getters
