@@ -18,7 +18,7 @@ SurfaceSetup::~SurfaceSetup()
     
 }
 
-SurfaceSetup::SurfaceSetup(int num_patches, double z_surface, double good_patch_x_width, double good_patch_y_width, double bad_patch_x_width, double bad_patch_y_width, double theta_good, double theta_bad)
+SurfaceSetup::SurfaceSetup(int num_patches, double z, double good_patch_x_width, double good_patch_y_width, double bad_patch_x_width, double bad_patch_y_width, double theta_good, double theta_bad): z_surface(z)
 {
     /* Creating a patch factory will be beneficial */
     /* num_patches have to be odd, for a central good patch and surrounding bad/good patches type stripes pattern */
@@ -66,7 +66,6 @@ SurfaceSetup::SurfaceSetup(int num_patches, double z_surface, double good_patch_
         }
         else
         {
-            printf("Inside generating stripes orientation\n");
             /* Implement a more general case of multiple patches perhaps using Patch factory if needed */
             int n_surrounding_patches = num_patches -  1 ;
             int n_patches_per_side_of_good = (n_surrounding_patches/2) ;

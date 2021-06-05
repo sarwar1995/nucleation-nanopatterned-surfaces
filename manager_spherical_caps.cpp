@@ -30,10 +30,13 @@ ManagerSphericalCaps::~ManagerSphericalCaps()
 }
 
 //color_roots(color_roots), roots_size(roots_size), roots_comm(comm)
-ManagerSphericalCaps::ManagerSphericalCaps(int branch_size, int branches_per_node, int Levels):
+ManagerSphericalCaps::ManagerSphericalCaps(int branches_per_node, int Levels):
 z_surface(0)
 {
-    parallel_process = ParallelProcess(branch_size, branches_per_node, Levels);
+    printf("Inside ManagerSphericalCaps constructor\n ");
+    MPI_Comm_rank (MPI_COMM_WORLD, &myRank);
+    MPI_Comm_size (MPI_COMM_WORLD, &nProcs);
+    parallel_process = ParallelProcess(branches_per_node, Levels);
 }
 
 void ManagerSphericalCaps::read_from_command_line(char* argv[], int start_index)
@@ -98,10 +101,11 @@ void ManagerSphericalCaps::setup(char* argv[], int start_index)
 {
     read_from_command_line(argv, start_index);
     broadcast_data_to_workers();
-    init_cap_identifier();
     setup_surface();
     setup_box();
     setup_mc_and_boundary();
+    setup_input_variables();
+    setup_evolve_spherical_caps();
 }
 
 
@@ -109,222 +113,93 @@ void ManagerSphericalCaps::setup_surface()
 {
     SurfaceSetup surface_setup (num_patches, z_surface, good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width, theta_good, theta_bad);
     stripes = surface_setup.create_new_stripes(); //This should work because the stripes object already exists in this class and the data returned form create_new_stripes is getting copied into the existing stripes object.
-    surface_ptr = &stripes;
+    surface_ptr = &stripes; 
+    stripes.initial_box(starting_box_dim);
+    
+    if(myRank == 0)
+    {
+        std::vector<std::vector<double> > here_box;
+        here_box = (*surface_ptr).box;
+        printf("box volume via surface ptr inside = %10.5f\n", ((here_box[0][1] - here_box[0][0]) * (here_box[1][1] - here_box[1][0]) * (here_box[2][1] - here_box[2][0])));
+        
+    }
+    
 }
 
 void ManagerSphericalCaps::setup_box()
 {
-    stripes.initial_box(starting_box_dim);
+    //stripes.initial_box(starting_box_dim);
     n_points = (int) (stripes.box_volume() * point_density);
     dynamic_box = DynamicBox (stripes.box, extension_length);
+    if(myRank == 0)
+    {
+        printf("printing box inside box setup\n");
+        dynamic_box.print_box();
+        
+    }
 }
 
 void ManagerSphericalCaps::setup_mc_and_boundary()
 {
     mc_engine =  MC (n_points, stripes.box, mc_seed, parallel_process.get_last_lvl_branch_comm());
     check_boundary = CheckBoundary (surface_ptr, &mc_engine , &dynamic_box, point_density);
+    if(myRank == 0)
+    {printf("mc n_points inside=%d\n", mc_engine.get_num_points());
+        printf("check boundary point density inside=%10.10f\n", check_boundary.get_point_density());}
+    
+}
+
+void ManagerSphericalCaps::setup_input_variables()
+{
+    input_variables.Rg_max = Rg_max;
+    input_variables.Rb_max = Rb_max;
+    input_variables.d_Rg = d_Rg;
+    input_variables.d_Rb = d_Rb;
+    input_variables.theta_good = theta_good;
+    input_variables.theta_bad = theta_bad;
+    input_variables.delta = delta;
+    input_variables.Rho = Rho;
+}
+
+void ManagerSphericalCaps::setup_evolve_spherical_caps()
+{
+    
+    evolve_spherical_cap = EvolveSphericalCap(parallel_process, stripes, &output_variables, &input_variables , check_boundary, mc_engine, dynamic_box, num_patches);
+    evolve_spherical_cap.print_initial_variables();
 }
 
 
-void ManagerSphericalCaps::setup_output_variables()
+//evolve
+void ManagerSphericalCaps::evolve()
 {
-    int n_unique_patches = stripes.get_n_unique_patches();
-    projected_SA.resize(n_unique_patches) ;
-    clstr_centre_location_modifier_global_arrays.resize(n_unique_patches); //{+1, -1}
-    
-    radii_global_arrays.resize(n_unique_patches);
-    
-    centre_left_cap[2] = z_surface;
-    centre_right_cap[2] = z_surface;
+    evolve_spherical_cap.evolve();
 }
 
-void ManagerSphericalCaps::evolve_three_caps()
+
+// Printing functions
+void ManagerSphericalCaps::print_surface_ptr()
 {
-    double Rg;
-    if(num_patches != 3)
+    if(myRank == 0)
     {
-        printf("Can't use evolve_three_caps with more than three patches\n");
-        abort();
-    }
-    else
-    {
-        std::vector<int> Rg_loop_start_end = getLoopStartEnd (len_Rg, worker_colors_per_level[0]);
-        printf("rank = %d Rg loop start end = %d %d %d\n", myRank, (int)Rg_loop_start_end.size(), Rg_loop_start_end[0], Rg_loop_start_end[1]);
+        std::vector<std::vector<double> > here_box;
+        here_box = (*surface_ptr).box;
+        printf("box volume via surface ptr outside = %10.5f\n", ((here_box[0][1] - here_box[0][0]) * (here_box[1][1] - here_box[1][0]) * (here_box[2][1] - here_box[2][0])));
         
-        /* Starting the loop for Rg.*/
-        for(int i = Rg_loop_start_end[0] ; i <= Rg_loop_start_end[1]; i++) // len_Rg
-        {
-            cap_identifier = 0;
-            cap_type = CENTRE_GOOD;
-            Rg = 0.0 + i*d_Rg ;  //  startingRg + i*d_Rg            //sphere's radius
-            double projected_rg = Rg*sin(theta_good); //projected radii of the circles
-            if(level_branch_rank[0] == 0)
-            {
-                printf("i=%d\t Rg = %10.10f\tprojected_rg = %10.10f\n",i, Rg, projected_rg);
-            }
-            
-            Spherical_cap GoodCap (centre_good, projected_rg, theta_good, z_surface);
-            Cluster_shape_ptr= &GoodCap;
-            check_boundary_ptr->ManageBoxBreach(Cluster_shape_ptr);
-            if(check_breaking_condition())
-            {
-                break;
-            }
-            else if(check_bounds())
-            {
-                evolve_bad_cap(projected_rg);
-            }
-            else
-            {
-                calc_volume_SA();
-            }
-        }
     }
 }
-
-//void ManagerSphericalCaps::evolve_bad_cap(double projected_rg)
-//{
-//    int Color_per_group = worker_colors_per_level[1] % 2;
-//    double projected_rb_min = sqrt(projected_rg*projected_rg - ((good_patch_x_width*good_patch_x_width)/4.0));
-//    double Rb_min = projected_rb_min/(double)sin(theta_bad) ; //Be careful to not have a theta that is 0 or 180
-//    int len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) + 1;
-//    std::vector<int> Rb_loop_start_end = getLoopStartEnd (len_Rb, worker_colors_per_level[2]);
-//    int dB_sign;
-//    double d_B;
-//    if (Color_per_group == 0)
-//    {
-//        dB_sign = -1;
-//    }
-//    else if (Color_per_group == 1)
-//    {
-//        dB_sign = 1;
-//    }
-//
-//    for(int l=Rb_loop_start_end[0]; l <= Rb_loop_start_end[1]; l++) //len_Rb //Adding another level for Rb parallelization
-//    {
-//        Rb = Rb_min + l * d_Rb ;
-//        double projected_rb = Rb * sin(theta_cb);
-//        double inside_sq = (projected_rb*projected_rb) - (projected_rg*projected_rg) + ((good_patch_x_width*good_patch_x_width)/4.0);
-//
-//        if(abs(inside_sq)<1e-10 && inside_sq < 0.0) {inside_sq = 0.0;}
-//        d_B = dB_list * sqrt(inside_sq) ;
-//        /* Symmetric caps on either side of central patch */
-//        c_bad_left[0] = -(good_patch_x_width/2.0) - d_B;
-//        c_bad_right[0] = (good_patch_x_width/2.0) + d_B;
-//    }
-//
-//}
-
-void ManagerSphericalCaps::evolve_cap()
+void ManagerSphericalCaps::print_box()
 {
-    double R, R_min, d_R;
-    double projected_r;
-    double theta;
-    int len_R;
-    std::vector<int> R_loop_start_end;
-    cap_type = (cap_identifier%2 == 0) ? GOOD : BAD ;
-    theta = (cap_type==GOOD) ? theta_good : theta_bad;
-    if (cap_identifier == 0)
+    if(myRank == 0)
     {
-        cap_type = CENTRE_GOOD;
-        len_R = (int) ((Rg_max-0.0)/d_Rg) + 1;
-        R_min = 0.0;
-        d_R = d_Rg;
-    }
-    else
-    {
-
-    }
-
-    R_loop_start_end = getLoopStartEnd (len_R, worker_colors_per_level[0]);
-    printf("rank = %d R loop start end = %d %d %d\n", myRank, (int)R_loop_start_end.size(), R_loop_start_end[0], R_loop_start_end[1]);
-    for(int i = R_loop_start_end[0] ; i <= R_loop_start_end[1]; i++) // len_Rg
-    {
-
-        R = R_min + i*d_R ;  //  startingRg + i*d_Rg            //sphere's radius
-        projected_r = R * sin(theta);
-        if(level_branch_rank[0] == 0)
-        {
-            printf("i=%d\t Rg = %10.10f\tprojected_rg = %10.10f\n",i, R, projected_r);
-        }
-        if (cap_identifier == 0)
-        {
-            //Is this valid. ????
-            Spherical_cap GoodCap (centre_good, projected_rg, theta_good, z_surface);
-
-            Cluster_shape_ptr= &GoodCap;
-        }
-        else
-        {
-
-        }
-
-        check_boundary_ptr->ManageBoxBreach(Cluster_shape_ptr);
-
-        check_bounds();
-    }
+    printf("printing box outside\n");
+        dynamic_box.print_box();}
 }
-
-bool ManagerSphericalCaps::check_bounds()
+void ManagerSphericalCaps::print_mc_and_check_boundary()
 {
-    //returning false indicates bounds are NOT crossed and true indicates they ARE.
-    stripes_bounds = surface_ptr->monitor_cluster_spread(Cluster_shape_ptr);
-    if(cap_type == CENTRE_GOOD)
+    if(myRank == 0)
     {
-        if(stripes_bounds[0] == 0)
-        {return false;}
-        else
-        {return true;}
-    }
-    else
-    {
-        int stripes_index = 2*cap_identifier - 1;
-        if (stripes_bounds [stripes_index] != stripes_bounds [stripes_index+1])
-        {
-            printf("Patch with identifier %d not crossed symmetrically\n", cap_identifier);
-            abort();
-        }
-        else if (stripes_bounds [stripes_index] == 0 && stripes_bounds[stripes_index+1] == 0)
-        {
-            return false;
-        }
-        else  if (stripes_bounds [stripes_index] == 1 && stripes_bounds[stripes_index+1] == 1)
-        {
-            return true;
-        }
-    }
-    
-}
-
-
-bool ManagerSphericalCaps::check_breaking_condition()
-{
-    //returning false indicates breaking will NOT occur and true indicates that it WILL.
-    if (surface_ptr->surface_bounds_breach (Cluster_shape_ptr)) //This is checking the final
-    {
-        return true;
-    }
-    else if(cap_identifier == 0)
-    {
-        return false;
-    }
-    else
-    {
-        std::vector<double> current_centre = cap_centres[cap_identifier];
-        double current_proj_radii = cap_projected_radii[cap_identifier];
-        std::vector<double> previous_centre = cap_centres[cap_identifier-1];
-        double previous_proj_radii = cap_projected_radii[cap_identifier-1];
-        
-        //The abs() value of centre differences accounts for both left and right images of the current cap.
-        bool check_less_than = current_proj_radii < previous_proj_radii + abs(current_centre[0] - previous_centre[0]) ;
-        bool check_greater_than = current_proj_radii > previous_proj_radii - abs(current_centre[0] - previous_centre[0]) ;
-    
-        if(!(check_less_than && check_greater_than))
-        {
-            return true;
-        }
-        else {return false;}
-    }
+    printf("mc n_points outside=%d\n", mc_engine.get_num_points());
+        printf("check boundary point density outside=%10.10f\n", check_boundary.get_point_density());}
 }
 
 
@@ -340,15 +215,31 @@ void ManagerSphericalCaps::gather()
 }
 
 
-void ManagerSphericalCaps::print_nelements()
+void ManagerSphericalCaps::print_quants(int rank)
 {
-//    if(myRank==0)
-//    {
-//        for(int i=0; i<roots_size; ++i)
-//        {
-//            printf("counts[%d] = %d\n", i, counts[i]);
-//        }
-//    }
+    if(myRank==rank)
+    {
+        std::cout<<" good_patch_x_width = "<<good_patch_x_width<<std::endl;
+        std::cout<<" good_patch_y_width = "<<good_patch_y_width<<std::endl;
+        std::cout<<" bad_patch_x_width = "<<bad_patch_x_width<<std::endl;
+        std::cout<<" bad_patch_y_width = "<<bad_patch_y_width<<std::endl;
+        std::cout<<" theta_good = "<<theta_good<<std::endl;
+        std::cout<<" theta_bad = "<<theta_bad<<std::endl;
+        std::cout<<" d_Rg = "<<d_Rg<<std::endl;
+        std::cout<<" d_Rb = "<<d_Rb<<std::endl;
+        std::cout<<" Rg_max = "<<Rg_max<<std::endl;
+        std::cout<<" Rb_max = "<<Rb_max<<std::endl;
+        std::cout<<" point_density = "<<point_density<<std::endl;
+        std::cout<<" mc_seed[0] = "<<mc_seed[0]<<std::endl;
+        std::cout<<" mc_seed[1] = "<<mc_seed[1]<<std::endl;
+        std::cout<<" mc_seed[2] = "<<mc_seed[2]<<std::endl;
+        std::cout<<" delta = "<<delta<<std::endl;
+        std::cout<<" Rho = "<<Rho<<std::endl;
+        std::cout<<" num_patches = "<<num_patches<<std::endl;
+        std::cout<<" extension_length = "<<extension_length<<std::endl;
+        std::cout<<" starting_box_dim = "<<starting_box_dim<<std::endl;
+
+    }
 }
 
 

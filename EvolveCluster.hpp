@@ -40,6 +40,9 @@ public:
     
     std::vector<Spherical_cap*> get_bad_caps(std::vector<double> c_bad_left, std::vector<double> c_bad_right, double projected_rb);
     
+    void EvolveSphericalBadCap_parallel (double Rg, double Rb_max, Shape* Cluster_shape_ptr, FILE* outputfile); //Only spherical caps case.
+    
+    
 protected:
     CheckBoundary* check_boundary;
     MC* mc_engine;

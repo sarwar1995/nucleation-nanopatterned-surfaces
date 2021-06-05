@@ -21,7 +21,6 @@
 #include "Spherical_cap.hpp"
 #include "Composite_cluster.hpp"
 #include "MC_parallel.hpp"
-#include "VolumeSA_calculations.hpp"
 #include "FreeEnergy.hpp"
 #include "surface_setup.hpp"
 #include "DynamicBox.hpp"
@@ -36,36 +35,28 @@ class ManagerSphericalCaps {
 public:
     ManagerSphericalCaps();
     ~ManagerSphericalCaps();
-    ManagerSphericalCaps(int, int , int); //int, MPI_Comm
+    ManagerSphericalCaps(int , int); //int, MPI_Comm
     
     //Setup
     void setup(char* argv[], int start_index);
     
-    
-    //cap evolution
-    //Recursively evolve spherical caps based on whether boundaries have been crossed.
-    void evolve_cap ();
-    void evolve_three_caps();
-    void evolve_bad_cap(double);
-    
-    
-    //Bounds checking
-    bool check_bounds();
-    bool check_breaking_condition();
-    
-    //Calculating Volume and SA
-    void calc_volume_SA();
+    //evolve
+    void evolve();
     
     //MPI gathering
     void gather ();
-    void print_nelements();
+    
+    //printing
+    void print_quants(int);
+    void print_surface_ptr();
+    void print_box();
+    void print_mc_and_check_boundary();
     
 protected:
-    
+    int myRank, nProcs;
     ParallelProcess parallel_process;
     EvolveSphericalCap evolve_spherical_cap;
     /*Member classes*/
-    Shape* Cluster_shape_ptr;
     CheckBoundary check_boundary;
     MC mc_engine;
     DynamicBox dynamic_box;
@@ -101,16 +92,17 @@ protected:
     void broadcast_data_to_workers();
 
     /* Setup functions */
-    void init_cap_identifier();
     void setup_surface();
     void setup_box();
     void setup_mc_and_boundary();
-    void setup_output_variables();
+    void setup_input_variables();
+    void setup_evolve_spherical_caps();
     
     
     /*Output variables: These vectors consist of vectors of location_modifiers and radii_arrays
      for each pair of symmetric patches surrounding the good patch and the good patch.*/
-    spherical_cap_output output_variables;
+    SphericalCapOutput output_variables;
+    SphericalCapInput input_variables;
 
 
     //Gathering data from all processes

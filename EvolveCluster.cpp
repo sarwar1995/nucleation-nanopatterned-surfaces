@@ -145,12 +145,23 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder (SpheroCylinder* spherocylind
     }
 }
 
+void EvolveCluster::EvolveSphericalBadCap_parallel(double Rg, double Rb_max, Shape* Cluster_shape_ptr, int bad_cap_level, FILE* outputfile)
+{
+    int Color_per_group = worker_colors_per_level[3] % 2; //since worker color is for all groups i.e from 0 to 15 (for 16 groups), we assign even workers a color of 0 and odd workers a color of 1.
+    
+    
+    
+    
+    
+    
+}
 
 void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* spherocylinder, Shape* Cluster_shape_ptr, double cyl_length, double d_chord_length, double Rg, FILE* outputfile, FILE* output_points_file)
 {
     int Color_per_group = worker_colors_per_level[3] % 2; //since worker color is for all groups i.e from 0 to 15 (for 16 groups), we assign even workers a color of 0 and odd workers a color of 1.
+   
     double chord_length_max = cyl_length;
-    int n_chord_length = (int)((chord_length_max - 0.0)/d_chord_length); // + 1 ;
+    int n_chord_length = (int)((chord_length_max - 0.0)/d_chord_length) + 1 ;
     
     double chord_length;
     double Rb, projected_rb_min, projected_rb, Rb_min;
@@ -169,7 +180,7 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* sph
         projected_rb_min = 0.5 * chord_length ;
         
         Rb_min = projected_rb_min/(double)sin(theta_cb) ; //Be careful to not have a theta that is 0 or 180
-        len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) ;//+ 1;
+        len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) + 1;
         int dB_sign;
         
         // 1: centre on bad patches
@@ -188,9 +199,9 @@ void EvolveCluster::EvolveBadCapWithSpherocylinder_parallel (SpheroCylinder* sph
         for(int l=Rb_loop_start_end[0]; l <= Rb_loop_start_end[1]; l++) //len_Rb //Adding another level for Rb parallelization
         {
             Rb = Rb_min + l * d_Rb ;
-//            if (Color_roots==0){
-//                printf("cyl length =%10.10f Rb = %10.10f\t chord_length = %10.10f\t dB_sign=%d\n", cyl_length, Rb, chord_length, dB_sign);
-//            }
+            if (Color_roots==0){
+                printf("cyl length =%10.10f Rb = %10.10f\t chord_length = %10.10f\t dB_sign=%d\n", cyl_length, Rb, chord_length, dB_sign);
+            }
             projected_rb = Rb * sin(theta_cb);
             
             double inside_sq = projected_rb*projected_rb - (0.5 * chord_length *0.5 * chord_length);

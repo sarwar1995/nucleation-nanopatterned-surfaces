@@ -18,15 +18,16 @@ ParallelProcess::~ParallelProcess()
     
 }
 
-ParallelProcess::ParallelProcess(int branch_size, int branches_per_node, int Levels):                                           BranchSize(branch_size), levels(Levels), n_branches_per_node(branches_per_node)
+ParallelProcess::ParallelProcess(int branches_per_node, int Levels):
+levels(Levels), n_branches_per_node(branches_per_node)
 {
     MPI_Comm_rank (MPI_COMM_WORLD, &myRank);
     MPI_Comm_size (MPI_COMM_WORLD, &nProcs);
-    
+    last_level = Levels-1; //must be declared before create_root_comms
     calc_worker_details_per_level();
     create_branch_comms_per_level();
     create_root_comms();
-    last_level = Levels-1;
+   
 }
 
 
@@ -39,7 +40,7 @@ void ParallelProcess::calc_worker_details_per_level()
         int group_size = pow(n_branches_per_node, i+1);
         num_workers_per_groups_per_level[i] = nProcs/group_size; //Ensure that they are multiples
         worker_colors_per_level[i] = myRank/num_workers_per_groups_per_level[i];
-        printf("level =%d\t rank = %d\t worker_colors_per_level = %d\n", i+1, myRank, worker_colors_per_level[i]);
+        //printf("level =%d\t rank = %d\t worker_colors_per_level = %d\n", i, myRank, worker_colors_per_level[i]);
     }
     
 }
@@ -56,7 +57,6 @@ void ParallelProcess::create_branch_comms_per_level()
         
         MPI_Comm_rank(branch_comm_levels[i], &level_branch_rank[i]);
         MPI_Comm_size(branch_comm_levels[i], &level_branch_size[i]);
-        printf("level = %d\t original rank=%d\t branch_rank=%d branch_size=%d\n", i, myRank, level_branch_rank[i], level_branch_size[i]);
     }
     
 }
@@ -82,7 +82,19 @@ bool ParallelProcess::is_last_lvl_root()
     return last_lvl_root_color==0;
 }
 
-bool ParallelProcess:: is_current_lvl_even_branch(int level)
+
+bool ParallelProcess::is_last_lvl_first_group()
+{
+    return (worker_colors_per_level[last_level] == 0) ;
+}
+
+bool ParallelProcess::is_current_lvl_root(int level)
+{
+    int current_lvl_root_color = (myRank%num_workers_per_groups_per_level[level] == 0) ? 0 : 1 ;
+    return (current_lvl_root_color == 0);
+}
+
+bool ParallelProcess::is_current_lvl_even_branch(int level)
 {
     return (worker_colors_per_level[level] % 2 == 0);
 }

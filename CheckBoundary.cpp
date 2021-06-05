@@ -94,6 +94,7 @@ void CheckBoundary::ExpandBox (std::vector<int> find_box_breach)
         extra_points_per_added_box = dynamic_box->add_fix_box(direction_to_expand_in, point_density); //This also updates the box within the dynamic_box class
         new_box = dynamic_box->get_box();
         mc_engine->add_points(new_box, direction_to_expand_in, extra_points_per_added_box); //This also updates the box within the MC class
+        surface -> update_box(new_box);
     }
 }
 

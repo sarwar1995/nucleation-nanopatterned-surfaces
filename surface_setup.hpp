@@ -27,6 +27,7 @@ public:
 protected:
     std::vector<Patch> list_of_patches;
     std::vector<std::vector<double> > orientations;
+    double z_surface;
     //Stripes stripes; //This can be a more general surface object in future.
     
     

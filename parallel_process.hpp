@@ -36,11 +36,14 @@ public:
     
     ParallelProcess();
     ~ParallelProcess();
-    ParallelProcess(int , int , int );
+    ParallelProcess(int , int );
     bool is_parent();
     bool is_last_lvl_root();
+    bool is_current_lvl_root(int);
     bool is_current_lvl_even_branch (int i);
-    MPI_Comm get_last_lvl_branch_comm (){return branch_comm_levels[mc_level]};
+    bool is_last_lvl_first_group();
+    int get_worker_color_for_level (int level) {return worker_colors_per_level[level];}
+    MPI_Comm get_last_lvl_branch_comm (){return branch_comm_levels[last_level];}
     
     
 protected:
@@ -48,7 +51,7 @@ protected:
     MPI_Comm roots_comm, branch_comm;
     std::vector<MPI_Comm> branch_comm_levels;
     int myRank, nProcs;
-    int BranchSize,  n_branches_per_node,  levels;
+    int n_branches_per_node,  levels;
     int last_level;
     int last_lvl_root_color, roots_rank, roots_size;
     std::vector<int> worker_colors_per_level; //This will have the color of each worker at each level.

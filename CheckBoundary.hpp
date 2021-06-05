@@ -13,6 +13,7 @@
 #include "Surface.hpp"
 #include "Shape.hpp"
 #include "DynamicBox.hpp"
+#include "MC_parallel.hpp"
 #include <math.h>
 
 
@@ -26,7 +27,10 @@ public:
     
     std::vector<int> CheckPatchBoundaries();
     bool CheckSpherocylinderBadPatch(double cyl_length, int dB_sign, double patch_width, std::vector<double> centre_left, std::vector<double> centre_right, double projected_radius); //If this returns true the current cap size is good otherwise break the loop for bad patch cap growth
-
+    
+    bool CheckSphericalCapsOnInfiniteBadPatch(); //Only condition that needs to be checked for an infinite bad patch is that bad patch centres and less than and greater than zero respectively.
+    
+    double get_point_density() {return point_density;}
 protected:
     Surface* surface;
     MC* mc_engine;
