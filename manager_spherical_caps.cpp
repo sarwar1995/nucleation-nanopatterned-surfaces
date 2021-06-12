@@ -26,14 +26,12 @@ ManagerSphericalCaps::ManagerSphericalCaps():z_surface(0)
 ManagerSphericalCaps::~ManagerSphericalCaps()
 {
 
-    delete []counts;
 }
 
 //color_roots(color_roots), roots_size(roots_size), roots_comm(comm)
 ManagerSphericalCaps::ManagerSphericalCaps(int branches_per_node, int Levels):
 z_surface(0)
 {
-    printf("Inside ManagerSphericalCaps constructor\n ");
     MPI_Comm_rank (MPI_COMM_WORLD, &myRank);
     MPI_Comm_size (MPI_COMM_WORLD, &nProcs);
     parallel_process = ParallelProcess(branches_per_node, Levels);
@@ -65,6 +63,7 @@ void ManagerSphericalCaps::read_from_command_line(char* argv[], int start_index)
         extension_length    = atof(argv[start_index + 18]);
         tag.assign(argv[start_index + 19]);
         starting_box_dim = atof(argv[start_index + 20]);
+        printf("%s\n", tag.c_str());
         printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
         printf("Rg_max, Rb_max = %10.5f %10.5f\n",Rg_max, Rb_max);
         printf("p_width_good = [%10.5f %10.5f] p_width_bad = [%10.5f %10.5f]\n", good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width);
@@ -73,6 +72,25 @@ void ManagerSphericalCaps::read_from_command_line(char* argv[], int start_index)
         
     }
 }
+
+void ManagerSphericalCaps::open_output_file()
+{
+    if(parallel_process.is_parent())
+    {
+        std::string V_SA_DataFileName = tag + "_V_SA_data.txt";
+        std::cout<<"tag = "<<tag<<std::endl;
+        std::cout<<"V_SA_DataFileName = "<<V_SA_DataFileName<<std::endl;
+        V_SA_DataFile = fopen(V_SA_DataFileName.c_str(), "w");
+        printf("ptr to file = %p\n", V_SA_DataFile);
+        if(V_SA_DataFile == NULL)
+        {
+            printf("Error opening output file\n");
+            exit(1);
+        }
+    }
+}
+
+
 
 void ManagerSphericalCaps::broadcast_data_to_workers()
 {
@@ -133,7 +151,6 @@ void ManagerSphericalCaps::setup_box()
     dynamic_box = DynamicBox (stripes.box, extension_length);
     if(myRank == 0)
     {
-        printf("printing box inside box setup\n");
         dynamic_box.print_box();
         
     }
@@ -143,9 +160,12 @@ void ManagerSphericalCaps::setup_mc_and_boundary()
 {
     mc_engine =  MC (n_points, stripes.box, mc_seed, parallel_process.get_last_lvl_branch_comm());
     check_boundary = CheckBoundary (surface_ptr, &mc_engine , &dynamic_box, point_density);
-    if(myRank == 0)
-    {printf("mc n_points inside=%d\n", mc_engine.get_num_points());
-        printf("check boundary point density inside=%10.10f\n", check_boundary.get_point_density());}
+//    if(myRank == 0)
+//    {
+//        printf("mc n_points inside=%d\n", mc_engine.get_num_points());
+//        printf("check boundary point density inside=%10.10f\n", check_boundary.get_point_density());
+//
+//    }
     
 }
 
@@ -164,16 +184,34 @@ void ManagerSphericalCaps::setup_input_variables()
 void ManagerSphericalCaps::setup_evolve_spherical_caps()
 {
     
-    evolve_spherical_cap = EvolveSphericalCap(parallel_process, stripes, &output_variables, &input_variables , check_boundary, mc_engine, dynamic_box, num_patches);
-    evolve_spherical_cap.print_initial_variables();
+    evolve_spherical_cap = EvolveSphericalCap(&parallel_process, stripes, &output_variables, &input_variables , &check_boundary, &mc_engine, num_patches);
+    //evolve_spherical_cap.print_initial_variables();
 }
 
 
 //evolve
-void ManagerSphericalCaps::evolve()
+int ManagerSphericalCaps::evolve()
 {
-    evolve_spherical_cap.evolve();
+   return evolve_spherical_cap.evolve();
 }
+
+void ManagerSphericalCaps::dummy_evolve(int n_loops)
+{
+    evolve_spherical_cap.dummy_evolve(n_loops);
+}
+
+// Related to output variables
+bool ManagerSphericalCaps::is_empty_output_variables()
+{
+    bool clstre_centre_array = output_variables.clstr_centre_location_modifier_global_array.empty();
+    bool radii_array = output_variables.radii_global_array.empty();
+    bool n_array = output_variables.Number_particles_global_array.empty();
+    bool volume_array = output_variables.Volume_global_array.empty();
+    bool SA_array = output_variables.SA_global_array.empty();
+    bool proj_SA_array = output_variables.projected_SA_global_array.empty();
+    return (clstre_centre_array && radii_array && n_array && volume_array && SA_array && proj_SA_array) ;
+}
+
 
 
 // Printing functions
@@ -187,6 +225,7 @@ void ManagerSphericalCaps::print_surface_ptr()
         
     }
 }
+
 void ManagerSphericalCaps::print_box()
 {
     if(myRank == 0)
@@ -194,24 +233,131 @@ void ManagerSphericalCaps::print_box()
     printf("printing box outside\n");
         dynamic_box.print_box();}
 }
+
 void ManagerSphericalCaps::print_mc_and_check_boundary()
 {
     if(myRank == 0)
     {
     printf("mc n_points outside=%d\n", mc_engine.get_num_points());
-        printf("check boundary point density outside=%10.10f\n", check_boundary.get_point_density());}
+        printf("check boundary point density outside=%10.10f\n", check_boundary.get_point_density());
+        
+    }
+}
+
+//void ManagerSphericalCaps::print_output_variables()
+//{
+//    if(myRank == 0)
+//    {
+//        std::vector<double> radii_array;
+//        if (!is_empty_output_variables())
+//        {
+//            radii_array = output_variables.radii_global_array;
+//            for(int i=0; i<radii_array.size(); i++)
+//            {
+//                printf("i=%d\t radius=%10.10f\n", i, radii_array[i]);
+//            }
+//        }
+//        else
+//        {
+//          printf("one of the output variables is empty\n");
+//        }
+//
+//    }
+//}
+
+void ManagerSphericalCaps::print_to_file()
+{
+    if(myRank == 0)
+    {
+        if(V_SA_DataFile != NULL)
+        {
+            gathered_output_variables.clstr_centre_location_modifier_global_array.resize(clstr_centre_modifier_size);
+            gathered_output_variables.Number_particles_global_array.resize(V_SA_size);
+            gathered_output_variables.Volume_global_array.resize(V_SA_size);
+            gathered_output_variables.SA_global_array.resize(V_SA_size);
+            gathered_output_variables.projected_SA_global_array.resize(proj_SA_size);
+            gathered_output_variables.radii_global_array.resize(radii_size);
+            
+            
+            add_Volume_SA_parallel (gathered_output_variables.Number_particles_global_array, gathered_output_variables.radii_global_array, gathered_output_variables.Volume_global_array, gathered_output_variables.SA_global_array, gathered_output_variables.projected_SA_global_array, gathered_output_variables.clstr_centre_location_modifier_global_array, num_patches, V_SA_DataFile );
+            
+            fclose(V_SA_DataFile);
+        }
+        else
+        {printf("File pointer is invalid\n") ;}
+    }
 }
 
 
 void ManagerSphericalCaps::gather()
 {
+    //Here we are looking at the last level because all previous level roots are also going to be last level roots as long as the parallelisation branching is same at each node, meaning same number of branches are created at each node. So that each level root will be a multiple of the branch_per_node variable.
+    if(parallel_process.is_last_lvl_root())
+    {
+        int roots_size = parallel_process.get_last_lvl_roots_size();
+        /*These counts are true for single element quantities per grid point like N, Volume, SA, dB and dG*/
+        int counts[roots_size];
+        int projected_SA_counts[roots_size];
+        int radii_counts[roots_size];
+        int clstr_centre_modifier_counts[roots_size];
+        
+        int nelements = (int)output_variables.Volume_global_array.size();
+        int projected_SA_nelements = (int)output_variables.projected_SA_global_array.size();
+        int radii_nelements = (int)output_variables.radii_global_array.size();
+        int clstr_centre_modifier_nelements = (int)output_variables.clstr_centre_location_modifier_global_array.size();
+//        printf("nelements=%d, projected_SA_nelements=%d, radii_nelements=%d, clstr_centre_modifier_nelements=%d\n", nelements, projected_SA_nelements, radii_nelements, clstr_centre_modifier_nelements);
+        
+        MPI_Comm roots_comm = parallel_process.get_last_lvl_roots_comm(); 
+        
+        MPI_Gather(&nelements, 1, MPI_INT, &counts[0], 1, MPI_INT, 0, roots_comm);
+        MPI_Gather(&projected_SA_nelements, 1, MPI_INT, &projected_SA_counts[0], 1, MPI_INT, 0, roots_comm);
+        MPI_Gather(&radii_nelements, 1, MPI_INT, &radii_counts[0], 1, MPI_INT, 0, roots_comm);
+        MPI_Gather(&clstr_centre_modifier_nelements, 1, MPI_INT, &clstr_centre_modifier_counts[0], 1, MPI_INT, 0, roots_comm);
+        
+        int disps[roots_size];
+        int projected_SA_disps[roots_size];
+        int radii_disps[roots_size];
+        int clstr_centre_modifier_disps[roots_size];
+        // Displacement for the first chunk of data - 0
+        for (int i = 0; i < roots_size; i++)
+        {
+            //printf("i = %d\t counts = %d\t projected_SA_counts=%d\t radii_counts=%d\n", i, counts[i], projected_SA_counts[i], radii_counts[i]);
+            disps[i] = (i > 0) ? (disps[i - 1] + counts[i - 1]) : 0;
+            projected_SA_disps[i] = (i > 0) ? (projected_SA_disps[i - 1] + projected_SA_counts[i - 1]) : 0;
+            radii_disps[i] = (i > 0) ? (radii_disps[i - 1] + radii_counts[i - 1]) : 0;
+            clstr_centre_modifier_disps[i] = (i > 0) ? (clstr_centre_modifier_disps[i - 1] + clstr_centre_modifier_counts[i - 1]) : 0;
+        }
+        
+        if(myRank == 0)
+        {
+            V_SA_size = disps[roots_size - 1] + counts[roots_size - 1];
+            proj_SA_size = projected_SA_disps[roots_size - 1] + projected_SA_counts[roots_size - 1];
+            radii_size = radii_disps[roots_size - 1] + radii_counts[roots_size - 1];
+            clstr_centre_modifier_size = clstr_centre_modifier_disps[roots_size - 1] + clstr_centre_modifier_counts[roots_size - 1];
+            
+            gathered_output_variables.clstr_centre_location_modifier_global_array.resize(clstr_centre_modifier_size);
+            gathered_output_variables.Number_particles_global_array.resize(V_SA_size);
+            gathered_output_variables.Volume_global_array.resize(V_SA_size);
+            gathered_output_variables.SA_global_array.resize(V_SA_size);
+            gathered_output_variables.projected_SA_global_array.resize(proj_SA_size);
+            gathered_output_variables.radii_global_array.resize(radii_size);
+        }
+        
+        
+        MPI_Gatherv(output_variables.Volume_global_array.data(), nelements, MPI_DOUBLE, gathered_output_variables.Volume_global_array.data(), &counts[0], &disps[0], MPI_DOUBLE, 0, roots_comm);
+        
+        MPI_Gatherv(output_variables.SA_global_array.data(), nelements, MPI_DOUBLE, gathered_output_variables.SA_global_array.data(), &counts[0], &disps[0], MPI_DOUBLE, 0, roots_comm);
+        
+        MPI_Gatherv(output_variables.Number_particles_global_array.data(), nelements, MPI_DOUBLE, gathered_output_variables.Number_particles_global_array.data(), &counts[0], &disps[0], MPI_DOUBLE, 0, roots_comm);
+        
+        MPI_Gatherv(output_variables.clstr_centre_location_modifier_global_array.data(), clstr_centre_modifier_nelements, MPI_INT, gathered_output_variables.clstr_centre_location_modifier_global_array.data(), &clstr_centre_modifier_counts[0], &clstr_centre_modifier_disps[0], MPI_INT, 0, roots_comm);
+        
+        MPI_Gatherv(output_variables.projected_SA_global_array.data(), projected_SA_nelements, MPI_DOUBLE, gathered_output_variables.projected_SA_global_array.data(), &projected_SA_counts[0], &projected_SA_disps[0], MPI_DOUBLE, 0, roots_comm);
+        
+        MPI_Gatherv(output_variables.radii_global_array.data(), radii_nelements, MPI_DOUBLE, gathered_output_variables.radii_global_array.data(), &radii_counts[0], &radii_disps[0], MPI_DOUBLE, 0, roots_comm);
+
+    }
     
-//    if(color_roots == 0)
-//    {
-//        /*These counts are true for single element quantities per grid point like N, Volume, SA, dB and dG*/
-//        counts = new int[roots_size];
-//        MPI_Gather(&nelements, 1, MPI_INT, counts, 1, MPI_INT, 0, roots_comm);
-//    }
 }
 
 
@@ -242,7 +388,10 @@ void ManagerSphericalCaps::print_quants(int rank)
     }
 }
 
-
+void ManagerSphericalCaps::free_MPI_comms()
+{
+    parallel_process.free_MPI_comms();
+}
 
 //MPI_Init (&argc, &argv);
 //MPI_Comm_rank (MPI_COMM_WORLD, &myRank);

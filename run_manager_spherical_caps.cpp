@@ -57,17 +57,31 @@ int main(int argc, char * argv[])
     ManagerSphericalCaps manager (branches_per_node,  Levels);
 
     manager.setup(argv, 2);
-    if(myRank == 0)
+    
+    int evolve_finished = manager.evolve();
+
+//    if(myRank == 0)
+//    {
+//        printf("Before dummy evolve\n");
+//        manager.dummy_evolve(2);
+////        manager.print_surface_ptr();
+////        manager.print_box();
+////        manager.print_mc_and_check_boundary();
+//    }
+
+    if(evolve_finished == 1)
     {
-        manager.print_surface_ptr();
-        manager.print_box();
-        manager.print_mc_and_check_boundary();
+        manager.gather();
+        if(myRank == 0){printf("Gather done\n");}
+        manager.open_output_file();
+        manager.print_to_file();
+    }
+    else
+    {
+        printf("Global evolve hasn't returned 1\n");
     }
     
-    
-    manager.print_quants(1);
-    
-    
+    manager.free_MPI_comms();
     MPI_Finalize();
     return EXIT_SUCCESS;
 }

@@ -27,7 +27,7 @@
 #include "CheckBoundary.hpp"
 #include "parallel_process.hpp"
 #include "evolve_spherical_caps.hpp"
-#include <chrono>
+#include "VolumeSA_calculations.hpp"
 
 
 class ManagerSphericalCaps {
@@ -41,16 +41,28 @@ public:
     void setup(char* argv[], int start_index);
     
     //evolve
-    void evolve();
+    int evolve();
+    void dummy_evolve(int);
     
     //MPI gathering
     void gather ();
+    
+    //Related to output variables
+    bool is_empty_output_variables();
+    
+    //output file
+    void open_output_file();
+    void print_to_file();
     
     //printing
     void print_quants(int);
     void print_surface_ptr();
     void print_box();
     void print_mc_and_check_boundary();
+    void print_output_variables();
+    
+    //free comms
+    void free_MPI_comms();
     
 protected:
     int myRank, nProcs;
@@ -82,6 +94,7 @@ protected:
     double Rho ;
     /*IO variables */
     FILE* V_SA_DataFile;
+    FILE* SurfacePointsFile;
     std::string tag;
     
     /* Reading input related functions */
@@ -103,11 +116,13 @@ protected:
      for each pair of symmetric patches surrounding the good patch and the good patch.*/
     SphericalCapOutput output_variables;
     SphericalCapInput input_variables;
+    SphericalCapOutput gathered_output_variables;
 
-
-    //Gathering data from all processes
-    int* counts;
-
+    /* Size variables related to gathering*/
+    int clstr_centre_modifier_size;
+    int V_SA_size;
+    int proj_SA_size;
+    int radii_size;
 };
 
 
