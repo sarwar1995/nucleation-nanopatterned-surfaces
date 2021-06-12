@@ -45,6 +45,54 @@ void add_Volume_SA (std::vector<double> Radii, std::vector<double> mc_volume_SA,
 
 }
 
+//The one in use for the manager spherical caps class
+void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> clstr_centre_location_modifier,  int n_patches, FILE* VolumeSAouput)
+{
+     int n_unique_patches = ((n_patches-1)/2) + 1;
+     int vol_size = (int)Volume_global_array.size();
+     bool volume_size_comparison = (Nparticles_global_array.size() == Volume_global_array.size() && Volume_global_array.size() == SA_global_array.size()) ;
+    
+    bool clstr_identifier_size_comparison = (Radii_global_array.size() == clstr_centre_location_modifier.size() && (int)Radii_global_array.size() == (vol_size * n_unique_patches));
+    
+    bool proj_SA_size_comparison = ((int)proj_SA_global_array.size() == n_patches*vol_size) ;
+    
+    if(volume_size_comparison && clstr_identifier_size_comparison && proj_SA_size_comparison)
+    {
+        for(int i=0; i<vol_size; i++)
+        {
+            fprintf(VolumeSAouput,"%10.10f\t%10.10f\t%10.10f\t", Nparticles_global_array[i], Volume_global_array[i], SA_global_array[i]);
+            int k_start = i * n_patches;
+            int k_end = k_start + n_patches;
+            for(int k=k_start; k<k_end; k++)
+            {
+                fprintf(VolumeSAouput, "%10.10f\t", proj_SA_global_array[k]);
+            }
+            int j_start = (int)i * n_unique_patches;
+            int j_end = j_start + n_unique_patches;
+            for(int j=j_start; j<j_end; j++)
+            {
+                fprintf(VolumeSAouput, "%d\t", clstr_centre_location_modifier[j]);
+            }
+            for(int j=j_start; j<j_end; j++)
+            {
+                fprintf(VolumeSAouput, "%10.10f\t", Radii_global_array[j]);
+            }
+            
+            
+            fprintf(VolumeSAouput, "\n");
+        }
+    }
+    else
+    {
+        printf("Sizes of global arrays are not correct. volume_size_comparison=%d\t clstr_identifier_size_comparison=%d\t proj_SA_size_comparison=%d\n", volume_size_comparison, clstr_identifier_size_comparison, proj_SA_size_comparison);
+        printf("n_particles=%d volume=%d SA=%d radii=%d proj_SA=%d clstr_centre=%d\n", (int)Nparticles_global_array.size(), (int)Volume_global_array.size(), (int)SA_global_array.size(), (int)Radii_global_array.size(), (int)proj_SA_global_array.size(), (int)clstr_centre_location_modifier.size());
+        
+        abort();
+    }
+    
+    
+}
+
 void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double> proj_SA_global_array, std::vector<int> db_global_array, std::vector<int> dg_secondary_global_array , FILE* VolumeSAouput)
 {
     int size = (int)Volume_global_array.size();

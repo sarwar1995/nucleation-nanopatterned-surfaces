@@ -14,7 +14,39 @@
 #include "FreeEnergy.hpp"
 #include "miscformulas.hpp"
 
+//class PrintGlobalArrays
+//{
+//public:
+//    PrintGlobalArrays();
+//    ~PrintGlobalArrays();
+//
+//    set_arrays_spherical_caps(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> clstr_centre_location_modifier);
+//
+//    set_arrays_spherocylinder()
+//
+//    void add_Volume_SA (std::vector<double> Radii, std::vector<double> mc_volume_SA, std::vector<double>compcluster_projected_SA, double Rho, int db, int dg_secondary, FILE* VolumeSAouput);
+//
+//    void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> clstr_centre_location_modifier, int n_patches, FILE* VolumeSAouput);
+//
+//    void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> db_global_array, std::vector<int> dg_secondary_global_array , FILE* VolumeSAouput);
+//
+//    void add_Volume_SA_spherocylinder_parallel(std::vector<int> dB_global_array, std::vector<double> Number_particles_global, std::vector<double> Volume_global_array, std::vector<double> SA_global_array, std::vector<double> projected_global_SA_array, std::vector<double> Rg_global_array, std::vector<double> Rb_global_array, std::vector<double> cyl_length_global_array, std::vector<double> chord_length_global_array, FILE* outputfile);
+//
+//protected:
+//    std::vector<double> Nparticles_global_array;
+//    std::vector<double> Radii_global_array;
+//    std::vector<double> Volume_global_array;
+//    std::vector<double> SA_global_array;
+//    std::vector<double> proj_SA_global_array;
+//    std::vector<int> db_global_array;
+//    std::vector<int> dg_secondary_global_array;
+//    FILE* VolumeSAouput;
+//    bool check_global_array_sizes ();
+//}
+
 void add_Volume_SA (std::vector<double> Radii, std::vector<double> mc_volume_SA, std::vector<double>compcluster_projected_SA, double Rho, int db, int dg_secondary, FILE* VolumeSAouput);
+
+void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> clstr_centre_location_modifier, int n_patches, FILE* VolumeSAouput);
 
 void add_Volume_SA_parallel(std::vector<double> Nparticles_global_array, std::vector<double> Radii_global_array, std::vector<double> Volume_global_array, std::vector<double>SA_global_array, std::vector<double>proj_SA_global_array, std::vector<int> db_global_array, std::vector<int> dg_secondary_global_array , FILE* VolumeSAouput);
 

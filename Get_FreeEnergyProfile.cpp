@@ -26,6 +26,32 @@ GetFreeEnergyProfile::~GetFreeEnergyProfile()
 }
 
 
+void GetFreeEnergyProfile::setup_NArray_quant(int length)
+{
+    
+    for (int i=0 ; i<len_N; i++)
+    {
+        NArray_quant[i] = std::vector<double> (length,0.0);
+        if(i==0)
+        {
+            NArray_quant[i][0] = Nmin;
+        }
+        else
+        {
+            NArray_quant[i][0]=NArray_quant[i-1][0]+dN ;
+        }
+    }
+}
+
+void GetFreeEnergyProfile::add_to_format_string(int repeats, string s)
+{
+    string format_str;
+    for(int i=0; i<repeats; i++)
+        format_str = format + s;
+    format = format_str.c_str();
+    
+}
+
 void GetFreeEnergyProfile::ReadProfileSphericalCaps()
 {
     double N, Volume, SA;
@@ -39,18 +65,7 @@ void GetFreeEnergyProfile::ReadProfileSphericalCaps()
     double G;
     
     //NArray_quant will have 9 values only for the all spherical caps case
-    for (int i=0 ; i<len_N; i++)
-    {
-        NArray_quant[i] = std::vector<double> (9,0.0);
-        if(i==0)
-        {
-            NArray_quant[i][0] = Nmin;
-        }
-        else
-        {
-            NArray_quant[i][0]=NArray_quant[i-1][0]+dN ;
-        }
-    }
+    setup_NArray_quant(9);
     
     format = "%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf%d\t%d\n" ;
     if(input_file == NULL)
@@ -104,18 +119,8 @@ void GetFreeEnergyProfile::ReadProfileSpherocylinder()
     double G;
     int dB;
     //NArray_quant will have 11 values only for the spherocylinder case
-    for (int i=0 ; i<len_N; i++)
-    {
-        NArray_quant[i] = std::vector<double> (11,0.0);
-        if(i==0)
-        {
-            NArray_quant[i][0] = Nmin;
-        }
-        else
-        {
-            NArray_quant[i][0]=NArray_quant[i-1][0]+dN ;
-        }
-    }
+    setup_NArray_quant(11);
+    
     if(input_file == NULL)
     {
         printf("Error opening input file\n");
@@ -147,6 +152,225 @@ void GetFreeEnergyProfile::ReadProfileSpherocylinder()
     fclose(input_file);
 }
 
+//////////////////////////////////////// GetSphericalCapsFreeEnergy //////////////////////////////////////
+
+GetSphericalCapsFreeEnergy::GetSphericalCapsFreeEnergy(FILE* input, FILE* output, int min_N, int max_N, double d_N, double Rho, double Mu, double Sigma, double T, double theta_cg, double theta_cb, int patches):GetFreeEnergyProfile( input,  output,  min_N,  max_N,  d_N,  Rho,  Mu,  Sigma,  T,  theta_cg,  theta_cb), n_patches(patches)
+{
+    if(n_patches < 3) {printf("Constructing GetSphericalCapsFreeEnergy, n_patches is less than 3, error\n"); abort();}
+    n_unique_patches = ((n_patches-1)/2) + 1 ;
+    
+    int NArray_quant_size = 4 + n_unique_patches + n_patches + n_unique_patches;
+    setup_NArray_quant(NArray_quant_size);
+    projected_SA.resize(n_patches, 0.0);
+    clstr_centre_location_modifier.resize(n_unique_patches, 0.0);
+    Radii.resize(n_unique_patches, 0.0);
+    setup_min_quants();
+}
+
+GetSphericalCapsFreeEnergy::~GetSphericalCapsFreeEnergy(){}
+
+void GetSphericalCapsFreeEnergy::setup_min_quants()
+{
+    min_quants.projected_SA.resize(n_patches, 0.0);
+    min_quants.clstr_centre_location_modifier.resize(n_unique_patches, 0.0);
+    min_quants.Radii.resize(n_unique_patches, 0.0);
+}
+
+
+void GetSphericalCapsFreeEnergy::read()
+{
+    // G + N + V + SA = 4, [R + clstr_centre_location_modifier + proj_SA] = 3*n_unique_patches
+    int fscanf_result = scan_manager_spherical_caps();
+    while(fscanf_result != EOF)
+    {
+        convert_quants_to_metre_cube();
+        if (isSingleCap(Radii))
+        {
+            G = free_energy_singlecap(Rho, Mu, Sigma, Volume, SA, projected_SA[0], theta_cg, T);
+        }
+        else
+        {
+            G = free_energy(Rho, Mu, Sigma, Volume, SA, projected_SA, theta_cg, theta_cb, T);
+        }
+        GetMinimumPerN();
+        fscanf_result = scan_manager_spherical_caps();
+    }
+    printToFile();
+    fclose(output_file);
+    fclose(input_file);
+}
+
+//double* N, double* Volume, double* SA,  std::vector<double>* projected_SAs, std::vector<int>* clstr_centre_location_modifier, std::vector<double>* Radii
+int GetSphericalCapsFreeEnergy::scan_manager_spherical_caps()
+{
+    if(input_file == NULL)
+    {
+        printf("Error opening input file\n");
+        exit(1);
+    }
+    int scan_N, scan_V, scan_SA, scan_proj, scan_clstr_centre, scan_radii;
+    string double_string ("%lf\t");
+    string int_string ("%d\t");
+    string double_end_string ("%lf\n");
+    scan_N = scan<double>(&N, double_string);
+    scan_V = scan<double>(&Volume, double_string);
+    scan_SA = scan<double>(&SA, double_string);
+    scan_proj = scan<double>(&projected_SA, double_string);
+    scan_clstr_centre  = scan<int>(&clstr_centre_location_modifier, int_string);
+    scan_radii = scan_end<double>(&Radii, double_string, double_end_string);
+//    printf("scan_N=%d scan_V=%d scan_SA=%d scan_proj=%d scan_clstr_centre=%d scan_radii=%d\n", scan_N, scan_V, scan_SA, scan_proj, scan_clstr_centre, scan_radii);
+//
+//    printf("N=%10.5f V=%10.10f SA=%10.10f proj_SA=[%10.10f %10.10f %10.10f] clstr_centre=[%d %d] radii=[%10.10f %10.10f]\n",
+//           N, Volume, SA, projected_SA[0], projected_SA[1], projected_SA[2], clstr_centre_location_modifier[0], clstr_centre_location_modifier[1], Radii[0], Radii[1]);
+    
+    
+    if (scan_N == EOF || scan_V == EOF || scan_SA == EOF || scan_proj == EOF || scan_clstr_centre == EOF || scan_radii == EOF){return EOF;}
+    else return (scan_N + scan_V + scan_SA + scan_proj + scan_clstr_centre + scan_radii);
+
+}
+
+void GetSphericalCapsFreeEnergy::convert_quants_to_metre_cube()
+{
+    Volume = Volume * 1e-30;    //This converts the volume from Ang^3 to m^3
+    SA = SA* 1e-20;
+    for(size_t y=0; y<projected_SA.size(); y++)
+    {
+        projected_SA[y] = projected_SA[y]*1e-20 ;
+    }
+}
+
+bool GetSphericalCapsFreeEnergy::isSingleCap(std::vector<double> radii)
+{
+    if(radii.empty())
+    {
+        printf("radii vector is empty\n"); abort();
+    }
+    else
+    {
+        if(radii[0] != 0.0)
+        {
+            for(int i=1; i<radii.size(); i++)
+            {
+                if(radii[i] != 0.0) {return false;}
+            }
+            return true;
+        }
+        else
+        {
+            printf("No first cap as well\n");
+            return true;
+        }
+    }
+    
+}
+
+void GetSphericalCapsFreeEnergy::GetMinimumPerN ()
+{
+    double rNhere = round_nearN (N , dN);   //This rounds to nearest N.
+    int indN = (int) ((rNhere-Nmin)/dN);
+    if(indN >= len_N){printf("Number of particles are not enough rNhere = %10.5f\t N=%10.5f\n", rNhere, N); abort();}
+    
+    double minNi = NArray_Gmin[indN]; //This is 0 when no free energy has been added
+    if(G <= minNi || NArray_confs[indN] == 0.0)
+    {
+        addToNQuants(indN);
+    }
+    else
+    {
+        NArray_quant[indN][1] = minNi;
+    }
+    NArray_confs[indN] = NArray_confs[indN] + 1;
+}
+
+void GetSphericalCapsFreeEnergy::addToNQuants(int indN)
+{
+    NArray_Gmin[indN] = G ;
+    NArray_quant[indN][1] = G;
+    NArray_quant[indN][2] = Volume ;
+    NArray_quant[indN][3] = SA ;
+    
+    for(int i=0; i<n_patches; i++)
+    {
+        int ind = i+4;
+        NArray_quant[indN][ind] = projected_SA[i];
+    }
+    for(int i=0; i<n_unique_patches; i++)
+    {
+        int ind = i+4+n_patches;
+        NArray_quant[indN][ind] = (double)clstr_centre_location_modifier[i];
+    }
+    for(int i=0; i<n_unique_patches; i++)
+    {
+        int ind = i+4+n_patches+n_unique_patches;
+        NArray_quant[indN][ind] = Radii[i];
+    }
+}
+
+void GetSphericalCapsFreeEnergy::printToFile()
+{
+    for(int i = 0; i<len_N ; i++)
+    {
+        update_min_quants_per_N(i);
+        print_min_quants_per_N(i);
+    }
+}
+
+void GetSphericalCapsFreeEnergy::update_min_quants_per_N(int i)
+{
+    min_quants.N = NArray_quant[i][0];
+    min_quants.G = NArray_quant[i][1];
+    min_quants.Volume = NArray_quant[i][2];
+    min_quants.SA = NArray_quant[i][3];
+//    printf("min N, G, Volume, SA = %10.5f\t%10.10f\t%10.10f\t%10.10f\n", min_quants.N, min_quants.G, min_quants.Volume, min_quants.SA);
+    for(int j=0; j<n_patches; j++)
+    {
+        int ind = j+4;
+        min_quants.projected_SA[j] = NArray_quant[i][ind];
+//        printf("ind = %dmin projected_SA[%d]=%10.10f\t",ind, j, min_quants.projected_SA[j]);
+    }
+    for(int j=0; j<n_unique_patches; j++)
+    {
+        int ind = j+4+n_patches;
+        min_quants.clstr_centre_location_modifier[j] = (int)NArray_quant[i][ind];
+//        printf("ind=%d min clstr_centre_location_modifier[%d]=%d\t",ind, j, min_quants.clstr_centre_location_modifier[j]);
+    }
+    for(int j=0; j<n_unique_patches; j++)
+    {
+        int ind = j+4+n_patches+n_unique_patches;
+        min_quants.Radii[j] = NArray_quant[i][ind];
+//        printf("ind=%d min Radii[%d]=%10.10f\t", ind, j, min_quants.Radii[j]);
+    }
+}
+
+void GetSphericalCapsFreeEnergy::print_min_quants_per_N(int i)
+{
+    if(output_file == NULL)
+    {
+        printf("Error opening output file\n");
+        exit(1);
+    }
+    //[N, Gmin (/kbT), V, SA, proj_SA, clstr_centre_modifier, Radii]
+    fprintf(output_file,"%10.5f\t%10.10f\t%10.10f\t%10.10f\t" , min_quants.N , min_quants.G , min_quants.Volume * 1e30 , min_quants.SA * 1e20);
+    
+    for(int j=0; j<n_patches; j++)
+    {
+        fprintf(output_file,"%10.10f\t", min_quants.projected_SA[j] * 1e20);
+    }
+    for(int j=0; j<n_unique_patches; j++)
+    {
+        fprintf(output_file,"%d\t", min_quants.clstr_centre_location_modifier[j]);
+    }
+    for(int j=0; j<n_unique_patches; j++)
+    {
+        if(j == n_unique_patches-1)
+        {
+            fprintf(output_file,"%10.10f\n", min_quants.Radii[j]);
+        }
+        else
+        {fprintf(output_file,"%10.10f\t", min_quants.Radii[j]);}
+    }
+}
+
 
 int main(int argc, const char * argv[])
 {
@@ -163,6 +387,8 @@ int main(int argc, const char * argv[])
     FILE* input_file;
     FILE* output_file;
     
+    int n_patches;
+    
     Nmin        = atoi(argv[1]);
     dN          = atof(argv[2]);
     Nmax        = atoi(argv[3]);
@@ -175,6 +401,7 @@ int main(int argc, const char * argv[])
     input_file  = fopen(argv[10], "r");
     output_file = fopen(argv[11], "w");
     isSpherocylinderFile = atof(argv[12]);
+    n_patches   = atoi(argv[13]);
     
     GetFreeEnergyProfile get_free_energy_profile (input_file, output_file, Nmin, Nmax, dN, Rho, Mu, Sigma, T, theta_cg, theta_cb);
     if (isSpherocylinderFile==1)
@@ -183,7 +410,8 @@ int main(int argc, const char * argv[])
     }
     else
     {
-        get_free_energy_profile.ReadProfileSphericalCaps();
+        GetSphericalCapsFreeEnergy get_spherical_caps_free_energy_profile (input_file, output_file, Nmin, Nmax, dN, Rho, Mu, Sigma, T, theta_cg, theta_cb, n_patches);
+        get_spherical_caps_free_energy_profile.read();
     }
     
     
