@@ -58,7 +58,8 @@ int main(int argc, char * argv[])
 
     manager.setup(argv, 2);
     
-    int evolve_finished = manager.evolve();
+    int evolve_finished = manager.evolve_profiling();
+    //manager.evolve();
 
 //    if(myRank == 0)
 //    {
@@ -69,17 +70,20 @@ int main(int argc, char * argv[])
 ////        manager.print_mc_and_check_boundary();
 //    }
 
-    if(evolve_finished == 1)
-    {
-        manager.gather();
-        if(myRank == 0){printf("Gather done\n");}
-        manager.open_output_file();
-        manager.print_to_file();
-    }
-    else
-    {
-        printf("Global evolve hasn't returned 1\n");
-    }
+    
+    MPI_Barrier(MPI_COMM_WORLD);
+//    if(evolve_finished == 1)
+//    {
+////        manager.gather();
+//        if(myRank == 0){printf("Gather done\n");}
+////        manager.open_output_file();
+//        //printf("Before manager printing to file\n");
+//        manager.print_to_file();
+//    }
+//    else
+//    {
+//        printf("Global evolve hasn't returned 1\n");
+//    }
     
     manager.free_MPI_comms();
     MPI_Finalize();

@@ -12,6 +12,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <vector>
+#include <cstring>
 #include <string.h>
 #include <cmath>
 //#include "Composite_cluster.hpp"
@@ -28,6 +29,7 @@
 #include "parallel_process.hpp"
 #include "evolve_spherical_caps.hpp"
 #include "VolumeSA_calculations.hpp"
+#include "periodic_io.hpp"
 
 
 class ManagerSphericalCaps {
@@ -42,17 +44,14 @@ public:
     
     //evolve
     int evolve();
+    int evolve_profiling();
     void dummy_evolve(int);
     
-    //MPI gathering
-    void gather ();
+    void print_to_file();
+    
     
     //Related to output variables
     bool is_empty_output_variables();
-    
-    //output file
-    void open_output_file();
-    void print_to_file();
     
     //printing
     void print_quants(int);
@@ -64,6 +63,7 @@ public:
     //free comms
     void free_MPI_comms();
     
+    
 protected:
     int myRank, nProcs;
     ParallelProcess parallel_process;
@@ -74,7 +74,7 @@ protected:
     DynamicBox dynamic_box;
     Stripes stripes;
     Surface* surface_ptr;
-    
+    PeriodicIO periodic_io;
     
     /* Input variables */
     double Rg_max, Rb_max, d_Rg, d_Rb;
@@ -85,6 +85,8 @@ protected:
     double theta_bad;
     double starting_box_dim;
     double extension_length;
+    /* Patch variables*/
+    int last_patch_isinfinite;
     /* MC variables */
     int n_points;
     double point_density;
@@ -96,6 +98,8 @@ protected:
     FILE* V_SA_DataFile;
     FILE* SurfacePointsFile;
     std::string tag;
+    const char* tag_c_str;
+    int tag_length;
     
     /* Reading input related functions */
     
@@ -103,13 +107,16 @@ protected:
     //as some inputs will be read before (start_index != 0)
     void read_from_command_line(char* argv[], int start_index);
     void broadcast_data_to_workers();
-
+    void send_tag();
+    void recieve_tag();
+    
     /* Setup functions */
     void setup_surface();
     void setup_box();
     void setup_mc_and_boundary();
     void setup_input_variables();
     void setup_evolve_spherical_caps();
+    void setup_periodic_io();
     
     
     /*Output variables: These vectors consist of vectors of location_modifiers and radii_arrays
@@ -118,11 +125,12 @@ protected:
     SphericalCapInput input_variables;
     SphericalCapOutput gathered_output_variables;
 
-    /* Size variables related to gathering*/
-    int clstr_centre_modifier_size;
-    int V_SA_size;
-    int proj_SA_size;
-    int radii_size;
+    
+//    /* Size variables related to gathering*/
+//    int clstr_centre_modifier_size;
+//    int V_SA_size;
+//    int proj_SA_size;
+//    int radii_size;
 };
 
 

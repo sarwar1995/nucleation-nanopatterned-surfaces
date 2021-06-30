@@ -19,43 +19,22 @@
 #include "DynamicBox.hpp"
 #include "CheckBoundary.hpp"
 #include "FreeEnergy.hpp"
+#include "periodic_io.hpp"
 
-
-enum CapType{
-    CENTRE_GOOD,
-    GOOD,
-    BAD
-};
-
-struct SphericalCapOutput
-{
-    std::vector<int> clstr_centre_location_modifier_global_array;
-    std::vector<double> radii_global_array;
-    std::vector<double> Number_particles_global_array;
-    std::vector<double> Volume_global_array;
-    std::vector<double> SA_global_array;
-    std::vector<double> projected_SA_global_array;
-};
-
-struct SphericalCapInput
-{
-    double Rg_max, Rb_max, d_Rg, d_Rb;
-    double theta_good;
-    double theta_bad;
-    double delta;
-    double Rho;
-};
 
 class EvolveSphericalCap
 {
 public:
     EvolveSphericalCap();
     ~EvolveSphericalCap();
-    EvolveSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput* , SphericalCapInput*, CheckBoundary*, MC* , int);
+    EvolveSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput*, SphericalCapInput*, CheckBoundary*, MC* , int, PeriodicIO*);
     
     void init_cap_identifier();
     
     int evolve ();
+    int evolve_profiling();
+    
+    /*dummy evolves for testing only*/
     int dummy_evolve(int);
     void dummy_set_next_evolve();
     
@@ -147,11 +126,13 @@ protected:
     double previous_patch_symmetric_boundary;
     int length_current_radius;
     int clstr_centre_location_modifier;
+    std::vector<int> clstr_centre_location_modifier_array_load_balancing;
     
     
     std::vector<int> Radius_loop_start_end;
     
     int identify_current_cap_growth_conditions ();
+    void get_balanced_modifier_array(int, bool);
     
     /* Output variables struct */
     SphericalCapOutput* output_variables;
@@ -168,9 +149,41 @@ protected:
     /* Adding quantities to the global arrays*/
     void add_radii_and_centre_modifier();
     
+    /* Writing to file periodically */
+    PeriodicIO* periodic_io ;
+    int write_to_file_periodically();
+    int write_profiling_periodically();
+    
+    //clearing output_variables after each write to file
+    void clear_output_variables();
+    
+    /*profiling variables*/
+    std::vector<std::vector<double>> grid_points;
+    std::vector<int> cost_per_grid_point;
+    
+    /*profiling function*/
+    void add_to_grid_points(int);
+    void clear_grid_points();
+    void print_grid_points_and_cost();
+    
     //Dummy evolve
     int dummy_decider;
 };
+
+
+//class ProfilingSphericalCap:public EvolveSphericalCap
+//{
+//public:
+//    ProfilingSphericalCap();
+//    ProfilingSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput*, SphericalCapInput*, CheckBoundary*, MC* , int, PeriodicIO*);
+//    ~ProfilingSphericalCap();
+//    int evolve_profiling();
+//
+//protected:
+//
+//}
+
+//int evolve_profiling();
 
 
 #endif /* evolve_spherical_caps_hpp */

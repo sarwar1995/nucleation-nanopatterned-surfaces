@@ -27,8 +27,9 @@ levels(Levels), n_branches_per_node(branches_per_node)
     calc_worker_details_per_level();
     create_branch_comms_per_level();
     create_root_comms_per_level();
-   
+    
 }
+
 
 
 void ParallelProcess::calc_worker_details_per_level()
@@ -109,7 +110,6 @@ bool ParallelProcess::is_current_lvl_even_branch(int level)
     return (worker_branch_colors_per_level[level] % 2 == 0);
 }
 
-
 void ParallelProcess::free_MPI_comms()
 {
 //    MPI_Comm_free(&roots_comm);
@@ -118,4 +118,92 @@ void ParallelProcess::free_MPI_comms()
         MPI_Comm_free (&branch_comm_levels[i]);
         MPI_Comm_free (&root_comm_levels[i]);
     }
+}
+
+std::vector<int> ParallelProcess::getLoopStartEnd_binary_split (int length, int level_color)
+{
+    //Here I am using branch size as 2 because we are dividing into two branches at each level so making a binary division at each node.
+    std::vector<int> loop_end_points (2);
+    int start, end;
+    int branch_rank;
+    int branch_size = 2;
+    int chunk_per_process = (int)(length/branch_size) ;
+    
+    if (level_color % 2 == 0)
+    {
+        branch_rank = 0;
+    }
+    else {branch_rank = 1;}
+    
+    if(length % branch_size != 0)
+    {
+        int extra_points = length % branch_size;
+        //Adding the remaining extra points to the last branch rank
+        if(branch_rank == branch_size - 1)
+        {
+            start = branch_rank*chunk_per_process;
+            end = (branch_rank+1)*chunk_per_process - 1;
+            end = end + extra_points ;
+        }
+        else
+        {
+            start = branch_rank*chunk_per_process;
+            end = (branch_rank+1)*chunk_per_process - 1;
+        }
+    }
+    else
+    {
+        start = branch_rank*chunk_per_process;
+        end = (branch_rank+1)*chunk_per_process - 1;
+        
+    }
+    loop_end_points[0] = start;
+    loop_end_points[1] = end;
+    return loop_end_points;
+}
+
+
+std::vector<int> ParallelProcess::getLoopStartEnd_balanced_binary_split (int length, int level_color)
+{
+    std::vector<int> loop_indices;
+    int branch_rank;
+    int branch_size = 2;
+    int chunk_per_processes_group = (int)(length/branch_size) ;
+    
+    if (level_color % 2 == 0)
+    {
+        branch_rank = 0;
+    }
+    else {branch_rank = 1;}
+    
+    if(length % branch_size != 0)
+    {
+        int extra_points = length % branch_size; //In the case of branch_size=2, extra_points will always be 1.
+        //Adding the remaining extra points to the last branch rank
+        if(branch_rank == branch_size - 1) //Odd group
+        {
+            loop_indices.resize(chunk_per_processes_group);
+            
+        }
+        else //Even group
+        {
+            loop_indices.resize(chunk_per_processes_group + extra_points); //Adding this to the even group because index of the last element will be even. Ex: if length=105, last element is 104.
+        }
+        for(int i=0; i<(int)loop_indices.size(); i++)
+        {
+            int index = (2*i) + branch_rank;
+            loop_indices[i] = index;
+        }
+    }
+    else
+    {
+        loop_indices.resize(chunk_per_processes_group);
+        for(int i=0; i<(int)loop_indices.size(); i++)
+        {
+            int index = (2*i) + branch_rank;
+            loop_indices[i] = index;
+        }
+    }
+    return loop_indices;
+        
 }

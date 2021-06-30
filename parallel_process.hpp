@@ -51,6 +51,11 @@ public:
     
     MPI_Comm get_this_lvl_branch_comm(int level) {return branch_comm_levels[level];}
     
+    
+    //loop splitting for Load balancing
+    std::vector<int> getLoopStartEnd_binary_split (int, int);
+    std::vector<int> getLoopStartEnd_balanced_binary_split (int, int);
+    
     //Free comms
     void free_MPI_comms();
     
@@ -72,10 +77,24 @@ protected:
     std::vector<int> level_root_rank;
     std::vector<int> level_root_size;
     
+//    //create recursive binary tree
+//    void recursive_binary();
+//
+//    //create a single processor serial job
+//    void serial();
+    
+    
     //Create parallelisation
     void calc_worker_details_per_level();
     void create_branch_comms_per_level();
     void create_root_comms_per_level();
     
+    
+    
+    
 };
+
+
+
+
 #endif /* parallel_process_hpp */

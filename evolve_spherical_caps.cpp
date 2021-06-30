@@ -19,8 +19,8 @@ EvolveSphericalCap::~EvolveSphericalCap()
     
 }
 
-EvolveSphericalCap::EvolveSphericalCap(ParallelProcess* process, Stripes stripes, SphericalCapOutput*  output_vars, SphericalCapInput* input_vars , CheckBoundary* check_bounds, MC* mc, int n_patches):
-parallel_process(process), stripes(stripes), output_variables(output_vars), check_boundary(check_bounds), mc_engine(mc), num_patches(n_patches), dummy_decider(0)
+EvolveSphericalCap::EvolveSphericalCap(ParallelProcess* process, Stripes stripes, SphericalCapOutput* output_vars, SphericalCapInput* input_vars, CheckBoundary* check_bounds, MC* mc, int n_patches, PeriodicIO* periodic):
+parallel_process(process), stripes(stripes), check_boundary(check_bounds), mc_engine(mc), num_patches(n_patches), output_variables(output_vars), dummy_decider(0), periodic_io(periodic)
 {
     MPI_Comm_rank (MPI_COMM_WORLD, &myRank);
     MPI_Comm_size (MPI_COMM_WORLD, &nProcs);
@@ -48,6 +48,7 @@ parallel_process(process), stripes(stripes), output_variables(output_vars), chec
     Rho = input_vars->Rho;
 }
 
+
 void EvolveSphericalCap::init_cap_identifier()
 {
     int n_unique_patches = stripes.get_n_unique_patches();
@@ -74,12 +75,12 @@ void EvolveSphericalCap::calc_volume_SA_central_good_cap(Spherical_cap& GoodCap)
     if(parallel_process->is_current_lvl_root(parallelisation_lvl))
     {
         
-        output_variables-> Volume_global_array.push_back(Volume);
-        output_variables-> SA_global_array.push_back(SA);
+        output_variables->Volume_global_array.push_back(Volume);
+        output_variables->SA_global_array.push_back(SA);
         
         addQuant(output_variables->projected_SA_global_array, local_projected_SA, num_patches);
         N = (Volume * 1e-30) * Rho * avogadro ;
-        output_variables-> Number_particles_global_array.push_back(N);
+        output_variables->Number_particles_global_array.push_back(N);
         //printf("Volume = %10.10f\t SA=%10.10f\t proj_SA = %10.10f\t N=%10.10f\n", Volume, SA, local_projected_SA[0], N);
         add_radii_and_centre_modifier();
     }
@@ -111,12 +112,12 @@ void EvolveSphericalCap::calc_volume_SA(Composite_cluster& Comp_cluster)
         }
         
       
-        output_variables-> Volume_global_array.push_back(Volume);
-        output_variables-> SA_global_array.push_back(SA);
+        output_variables->Volume_global_array.push_back(Volume);
+        output_variables->SA_global_array.push_back(SA);
         
         addQuant(output_variables->projected_SA_global_array, local_projected_SA, num_patches);
         N = (Volume * 1e-30) * Rho * avogadro ;
-        output_variables-> Number_particles_global_array.push_back(N);
+        output_variables->Number_particles_global_array.push_back(N);
         add_radii_and_centre_modifier();
 
     }
@@ -125,11 +126,34 @@ void EvolveSphericalCap::add_radii_and_centre_modifier()
 {
     for(int i=0; i<current_radii_array.size(); i++)
     {
-        output_variables-> radii_global_array.push_back(current_radii_array[i]);
-        output_variables-> clstr_centre_location_modifier_global_array.push_back(current_clstr_centre_modifier_array[i]);
+        output_variables->radii_global_array.push_back(current_radii_array[i]);
+        output_variables->clstr_centre_location_modifier_global_array.push_back(current_clstr_centre_modifier_array[i]);
     }
     
 }
+
+void EvolveSphericalCap::add_to_grid_points(int n_points_in_box)
+{
+    vector<double> this_grid_point;
+    for(int i=0; i<current_radii_array.size(); i++)
+    {
+        this_grid_point.push_back(current_radii_array[i]);
+    }
+    for(int i=0; i<current_radii_array.size(); i++)
+    {
+        this_grid_point.push_back((double)current_clstr_centre_modifier_array[i]);
+    }
+    grid_points.push_back(this_grid_point);
+    cost_per_grid_point.push_back(n_points_in_box);
+}
+
+void EvolveSphericalCap::clear_grid_points()
+{
+    grid_points.clear();
+    cost_per_grid_point.clear();
+}
+
+
 
 int EvolveSphericalCap::dummy_evolve(int n_loops)
 {
@@ -193,7 +217,6 @@ int EvolveSphericalCap::evolve ()
     double z_surface = 0.0;
     double Radius, projected_radius ;
     
-//    printf("radius loop start end = [%d %d]\n", Radius_loop_start_end[0], Radius_loop_start_end[1]);
 //    printf("current_radius_min = %10.10f\n", current_radius_min);
 //    printf("d_current_radius = %10.10f\n", d_current_radius);
 //    printf("current_theta = %10.10f\n", current_theta);
@@ -203,15 +226,32 @@ int EvolveSphericalCap::evolve ()
 //        return 0;
 //    }
     
-    for(int i = Radius_loop_start_end[0] ; i <= Radius_loop_start_end[1]; i++) // len_Rg
+    int size_loop = (int)Radius_loop_start_end.size();
+    for(int j = 0 ; j < size_loop ; j++)
     {
-        if(parallel_process->is_current_lvl_root(parallelisation_lvl)){printf("parallelisation_lvl = %d i=%d\n", parallelisation_lvl, i);}
+        
+        int i= Radius_loop_start_end[j];
+//        if(parallel_process->is_current_lvl_root(parallelisation_lvl) && i == Radius_loop_start_end[1])
+//        {
+//            int color = parallel_process->get_worker_color_for_level(parallelisation_lvl);
+//            printf("end of group %d for parallelisation_lvl=%d\n", color, parallelisation_lvl);
+//        }
         Radius = current_radius_min + i * d_current_radius ;  //  startingRg + i*d_Rg            //sphere's radius
         projected_radius = Radius * sin(current_theta);
         
+        if(parallel_process->is_current_lvl_root(parallelisation_lvl)){printf("parallelisation_lvl = %d i=%d Radius=%10.3f\n", parallelisation_lvl, i, Radius);}
+        
+        clstr_centre_location_modifier = (growing_cap_index ==0) ? 0 : clstr_centre_location_modifier_array_load_balancing[j];
         current_projected_radii_array[growing_cap_index] = projected_radius;
         current_radii_array[growing_cap_index] = Radius;
         current_clstr_centre_modifier_array[growing_cap_index] = clstr_centre_location_modifier;
+        
+        int should_write_to_file;
+//        if(myRank == 0)
+//        {
+        should_write_to_file = (j == (size_loop/2) ||  j == size_loop-1) ? 1 : 0;
+//        }
+//        MPI_Bcast (&should_write_to_file, 1, MPI_INT, 0,  MPI_COMM_WORLD);
         
         if(growing_cap_index == 0)
         {
@@ -250,6 +290,24 @@ int EvolveSphericalCap::evolve ()
                 else
                 {
                     calc_volume_SA_central_good_cap(GoodCap);
+                    if(parallel_process->is_current_lvl_root(parallelisation_lvl))
+                    {
+                        if(should_write_to_file==1)
+                        {
+                            printf("Barrier before writing reached\t rank=%d\n", myRank);
+    //                        int barrier_before = MPI_Barrier(MPI_COMM_WORLD);
+    //                        if (barrier_before == MPI_SUCCESS){printf("Barrier before writing passed\t rank=%d\n", myRank);}
+    //                        int written = (barrier_before == MPI_SUCCESS) ? write_to_file_periodically() : 0;
+                            int written = write_to_file_periodically();
+                            //MPI_Barrier(MPI_COMM_WORLD);
+                            if(written == 1)
+                            {
+    //                            int barrier_after = MPI_Barrier(MPI_COMM_WORLD);
+    //                            if (barrier_after==MPI_SUCCESS) {clear_output_variables();}
+                                clear_output_variables();
+                            }
+                        }
+                    }
                 }
             }
             
@@ -292,12 +350,28 @@ int EvolveSphericalCap::evolve ()
                     growing_capsList.push_back(Cap_left);
                     growing_capsList.push_back(Cap_right);
                     calc_and_set_centre_to_left_patch_boundary_distance();
-                    evolve();
+                    evolve_output = evolve();
                     if(evolve_output == 0){break;}
                 }
                 else
                 {
                     calc_volume_SA(Comp_cluster);
+                    if(parallel_process->is_current_lvl_root(parallelisation_lvl))
+                    {
+                        if(should_write_to_file==1)
+                        {
+    //                        int barrier_before = MPI_Barrier(MPI_COMM_WORLD);
+    //                        int written = (barrier_before == MPI_SUCCESS) ? write_to_file_periodically() : 0;
+                            int written = write_to_file_periodically();
+                            //MPI_Barrier(MPI_COMM_WORLD);
+                            if(written == 1)
+                            {
+    //                            int barrier_after = MPI_Barrier(MPI_COMM_WORLD);
+    //                            if (barrier_after==MPI_SUCCESS) {clear_output_variables();}
+                                clear_output_variables();
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -307,6 +381,160 @@ int EvolveSphericalCap::evolve ()
     reset_evolve();
     return 1;
 }
+
+
+int EvolveSphericalCap::evolve_profiling()
+{
+    int check_radius_min_within_radius_max;
+    int evolve_output;
+    if(parallel_process->is_parent()){printf("Inside evolve\n");}
+    setup_next_evolve();
+    check_radius_min_within_radius_max = identify_current_cap_growth_conditions();
+    if(check_radius_min_within_radius_max == 0)
+    {
+        reset_evolve();
+        return 0;
+    }
+    int n_points_in_box;
+    double z_surface = 0.0;
+    double Radius, projected_radius ;
+
+    int size_loop = (int)Radius_loop_start_end.size();
+    for(int j = 0 ; j < size_loop; j++) // len_Rg
+    {
+        
+        int i = Radius_loop_start_end[j];
+        
+        Radius = current_radius_min + i * d_current_radius ;  //  startingRg + i*d_Rg            //sphere's radius
+        projected_radius = Radius * sin(current_theta);
+        
+        if(parallel_process->is_current_lvl_root(parallelisation_lvl)){printf("parallelisation_lvl = %d i=%d Radius=%10.3f\n", parallelisation_lvl, i, Radius);}
+        
+        clstr_centre_location_modifier = (growing_cap_index ==0) ? 0 : clstr_centre_location_modifier_array_load_balancing[j];
+        current_projected_radii_array[growing_cap_index] = projected_radius;
+        current_radii_array[growing_cap_index] = Radius;
+        current_clstr_centre_modifier_array[growing_cap_index] = clstr_centre_location_modifier;
+        int should_write_to_file = (j == (size_loop/2) ||  j == size_loop-1) ? 1 : 0;
+ 
+        if(growing_cap_index == 0)
+        {
+            std::vector<double> centre_good(3,0.0);
+            current_cap_centres[growing_cap_index] = centre_good;
+            
+            Spherical_cap GoodCap (centre_good, projected_radius, current_theta, z_surface);
+            
+            Cluster_shape_ptr= &GoodCap;
+            
+            check_boundary->ManageBoxBreach(Cluster_shape_ptr);
+            n_points_in_box = mc_engine->get_num_points();
+            
+            if(check_breaking_condition())
+            {
+                printf("check breaking condition true for central cap\n");
+                break;
+            }
+            else
+            {
+                if (patch_bounds_crossed())
+                {
+                    //                    printf("Patch bounds crossed for good patch at i=%d\n", i);
+                    if(growing_capsList.empty())
+                    {
+                        growing_capsList.push_back(GoodCap);
+                    }
+                    else
+                    {
+                        growing_capsList[0] = GoodCap;
+                    }
+                    calc_and_set_centre_to_left_patch_boundary_distance();
+                    evolve_output = evolve_profiling();
+                    //                    printf("BEFORE BREAK radius loop start end = [%d %d]\n", Radius_loop_start_end[0], Radius_loop_start_end[1]);
+                    if(evolve_output == 0){break;}
+                }
+                else
+                {
+                    add_to_grid_points(n_points_in_box);
+                    if(parallel_process->is_current_lvl_root(parallelisation_lvl))
+                    {
+                        if(should_write_to_file==1)
+                        {
+                            int written = write_profiling_periodically();
+                            if(written == 1)
+                            {
+                                clear_grid_points();
+                            }
+                        }
+                    }
+                }
+            }
+            
+        }
+        else
+        {
+            double inside_sq = projected_radius*projected_radius - previous_cap_projected_radius*previous_cap_projected_radius + previous_centre_to_left_patch_boundary_distance * previous_centre_to_left_patch_boundary_distance ;
+            
+            if(abs(inside_sq)<1e-10 && inside_sq < 0.0) {inside_sq = 0.0;}
+            current_centre_to_previous_patch_boundary_distance = clstr_centre_location_modifier * sqrt(inside_sq) ;
+            
+            /* Symmetric caps on either side of central patch */
+            centre_left_cap[0] = -(previous_patch_symmetric_boundary) - current_centre_to_previous_patch_boundary_distance;
+            centre_right_cap[0] = (previous_patch_symmetric_boundary) + current_centre_to_previous_patch_boundary_distance;
+            
+            current_cap_centres[growing_cap_index] = centre_left_cap;
+            
+            Spherical_cap Cap_left(centre_left_cap, projected_radius, current_theta, z_surface);
+            Spherical_cap Cap_right(centre_right_cap, projected_radius, current_theta, z_surface);
+            
+            std::vector<Spherical_cap> capsList = growing_capsList;
+            capsList.push_back(Cap_left);
+            capsList.push_back(Cap_right);
+            
+            Composite_cluster Comp_cluster (capsList, stripes);
+            Cluster_shape_ptr = &Comp_cluster;
+            
+            check_boundary->ManageBoxBreach(Cluster_shape_ptr);
+            n_points_in_box = mc_engine->get_num_points();
+            
+            if(check_breaking_condition())
+            {
+                printf("check breaking condition true for growing cap=%d\n", growing_cap_index);
+                break;
+            }
+            else
+            {
+                if (patch_bounds_crossed())
+                {
+                    //updating the growing_capsList to contain the current boundary crossed cap. push_back will work here since the growing_capsList vector is resized after every reset of evolve.
+                    growing_capsList.push_back(Cap_left);
+                    growing_capsList.push_back(Cap_right);
+                    calc_and_set_centre_to_left_patch_boundary_distance();
+                    evolve_output = evolve_profiling();
+                    if(evolve_output == 0){break;}
+                }
+                else
+                {
+                    add_to_grid_points(n_points_in_box);
+                    if(parallel_process->is_current_lvl_root(parallelisation_lvl))
+                    {
+                        if(should_write_to_file==1)
+                        {
+                            int written = write_profiling_periodically();
+                            if(written == 1)
+                            {
+                                clear_grid_points();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+    }//for loop
+    
+    reset_evolve();
+    return 1;
+}
+
 
 bool EvolveSphericalCap::has_no_caps()
 {
@@ -421,7 +649,7 @@ int EvolveSphericalCap::identify_current_cap_growth_conditions()
         current_radius_max = Rg_max;
         d_current_radius = d_Rg;
         length_current_radius = (int) ((current_radius_max-current_radius_min)/d_current_radius) + 1;
-        Radius_loop_start_end = getLoopStartEnd (length_current_radius, parallel_process->get_worker_color_for_level (parallelisation_lvl));
+        Radius_loop_start_end = parallel_process->getLoopStartEnd_balanced_binary_split (length_current_radius, parallel_process->get_worker_color_for_level (parallelisation_lvl));
         current_theta = theta_good;
         clstr_centre_location_modifier = 0;
         
@@ -456,16 +684,19 @@ int EvolveSphericalCap::identify_current_cap_growth_conditions()
         
         current_radius_min = projected_radius_min/(double)sin(current_theta) ;
         length_current_radius = (int) ((current_radius_max-current_radius_min)/d_current_radius) + 1;
-        Radius_loop_start_end = getLoopStartEnd (length_current_radius, parallel_process->get_worker_color_for_level (parallelisation_lvl));
+        Radius_loop_start_end = parallel_process->getLoopStartEnd_balanced_binary_split (length_current_radius, parallel_process->get_worker_color_for_level (parallelisation_lvl));
         int prev_parallelisation_lvl = (parallelisation_lvl == 0) ? 0 : (parallelisation_lvl - 1);
-        if (parallel_process->is_current_lvl_even_branch(prev_parallelisation_lvl)) //Here parallelisation level corresponds to Radius loop parallelization. cap position parallelisation is one level above that.
-        {
-            clstr_centre_location_modifier = 1;
-        }
-        else
-        {
-            clstr_centre_location_modifier = -1;
-        }
+        
+        
+        get_balanced_modifier_array((int)Radius_loop_start_end.size(), parallel_process->is_current_lvl_even_branch(prev_parallelisation_lvl));
+//        if (parallel_process->is_current_lvl_even_branch(prev_parallelisation_lvl)) //Here parallelisation level corresponds to Radius loop parallelization. cap position parallelisation is one level above that.
+//        {
+//            clstr_centre_location_modifier = 1;
+//        }
+//        else
+//        {
+//            clstr_centre_location_modifier = -1;
+//        }
         
         if(current_radius_max < current_radius_min)
         {
@@ -476,9 +707,22 @@ int EvolveSphericalCap::identify_current_cap_growth_conditions()
     return 1;
 }
 
-void EvolveSphericalCap::reset_current_cap_growth_conditions()
+void EvolveSphericalCap::get_balanced_modifier_array(int size, bool isEvenBranch)
 {
-    
+    clstr_centre_location_modifier_array_load_balancing.empty();
+    clstr_centre_location_modifier_array_load_balancing.resize(size);
+    for(int i=0; i<size; i++)
+    {
+        if(isEvenBranch)
+        {
+            clstr_centre_location_modifier_array_load_balancing[i] = pow(-1.0, i);
+        }
+        else
+        {
+            clstr_centre_location_modifier_array_load_balancing[i] = pow(-1.0, i+1);
+            
+        }
+    }
 }
 
 void EvolveSphericalCap::calc_and_set_centre_to_left_patch_boundary_distance()
@@ -665,6 +909,41 @@ void EvolveSphericalCap::set_MC_comm()
     mc_engine->set_branch_comm(MC_comm);
 }
 
+int EvolveSphericalCap::write_to_file_periodically()
+{
+    return (periodic_io->write_individually());
+            //periodic_io->gather_and_write());
+}
+
+int EvolveSphericalCap::write_profiling_periodically()
+{
+    return (periodic_io->write_profiling_individually(grid_points, cost_per_grid_point));
+    //periodic_io->gather_and_write());
+}
+
+void EvolveSphericalCap::clear_output_variables()
+{
+    output_variables->clstr_centre_location_modifier_global_array.clear();
+    output_variables->radii_global_array.clear();
+    output_variables->Number_particles_global_array.clear();
+    output_variables->Volume_global_array.clear();
+    output_variables->SA_global_array.clear();
+    output_variables->projected_SA_global_array.clear();
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//ProfilingSphericalCap::ProfilingSphericalCap()
+//{}
+//
+//ProfilingSphericalCap::~ProfilingSphericalCap()
+//{
+//}
+//
+//ProfilingSphericalCap::ProfilingSphericalCap(ParallelProcess* process, Stripes stripes, SphericalCapOutput* output_vars, SphericalCapInput* input_vars, CheckBoundary* check_bounds, MC* mc, int n_patches, PeriodicIO* periodic): EvolveSphericalCap(process, stripes, output_vars, input_vars, check_bounds, mc, n_patches, periodic)
+//{}
+
+
 
 //bool ManagerSphericalCaps::check_bounds()
 //{
@@ -719,7 +998,7 @@ void EvolveSphericalCap::set_MC_comm()
 //
 //    }
 //
-//    R_loop_start_end = getLoopStartEnd (len_R, worker_colors_per_level[0]);
+//    R_loop_start_end = getLoopStartEnd_balanced_binary_split (len_R, worker_colors_per_level[0]);
 //    printf("rank = %d R loop start end = %d %d %d\n", myRank, (int)R_loop_start_end.size(), R_loop_start_end[0], R_loop_start_end[1]);
 //    for(int i = R_loop_start_end[0] ; i <= R_loop_start_end[1]; i++) // len_Rg
 //    {
