@@ -20,16 +20,33 @@ public:
     
     std::vector<int> monitor_cluster_spread(Shape*);
     
-    std::vector<int> monitor_box_breach(Shape*);
+    //This function tells whether the stripe bound of stripe with index int i is crossed
+    bool is_bounds_crossed(int);
     
-    //void evolve_cluster(double, double);
-    //int valid_point(std::vector<double>&);
+    std::vector<int> monitor_box_breach(Shape*); //std::vector<int>
+    
+    bool surface_bounds_breach (Shape*);
+    
     void calc_box(double);
-    std::vector<std::vector<double> > box;
+    void initial_box(double);
     inline double box_volume() {return (box[0][1] - box[0][0]) * (box[1][1] - box[1][0]) * (box[2][1] - box[2][0]) ;}
+    
+    //Getters
+    double get_zwall (){return z_wall;}
+    int get_n_unique_patches (){return n_unique_patches;}
+    
+    void print_all_patch_bounds();
+    
 private:
     Patch central_patch;    //The patch that has its centre at the origin
     double z_wall;
+    int num_patches;
+    int n_surrounding_patches;
+    int n_patches_per_side_of_good;
+    int n_unique_patches;
+    
+    
+    std::vector<int> bounds_crossed;
 };
 
 

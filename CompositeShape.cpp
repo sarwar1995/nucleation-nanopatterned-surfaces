@@ -87,11 +87,12 @@ std::vector<double> CompositeShape::threeDim_spread()
     
     for(size_t i = 1; i<list_of_shapes.size(); i++)
     {
+        
         std::vector<double> iCap3DSpread = list_of_shapes[i]->threeDim_spread();
         if(iCap3DSpread[0] <= thisSpread[0]) { thisSpread[0] = iCap3DSpread[0]; }
         if(iCap3DSpread[1] >= thisSpread[1]) { thisSpread[1] = iCap3DSpread[1]; }
         if(iCap3DSpread[2] <= thisSpread[2]) { thisSpread[2] = iCap3DSpread[2]; }
-        if(iCap3DSpread[3] >= thisSpread[2]) { thisSpread[3] = iCap3DSpread[3]; }
+        if(iCap3DSpread[3] >= thisSpread[3]) { thisSpread[3] = iCap3DSpread[3]; }
         if(iCap3DSpread[4] >= thisSpread[4]) { thisSpread[4] = iCap3DSpread[4]; }
     }
     return thisSpread;

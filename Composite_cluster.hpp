@@ -46,7 +46,7 @@ public:
 //
     
 protected:
-    std::vector<Spherical_cap> list_of_spherical_caps; //[Good, Bad left, Bad right]
+    std::vector<Spherical_cap> list_of_spherical_caps; //[Good, Bad left, Bad right, ....]
     Surface surface;
     
     std::vector<double> Cb1, Cg, Cb2;               // Sphere centres

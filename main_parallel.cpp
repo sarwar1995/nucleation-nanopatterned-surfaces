@@ -19,6 +19,9 @@
 #include "MC_parallel.hpp"
 #include "VolumeSA_calculations.hpp"
 #include "FreeEnergy.hpp"
+#include "surface_setup.hpp"
+#include "DynamicBox.hpp"
+#include "CheckBoundary.hpp"
 #include <chrono>
 #include <mpi.h>
 
@@ -26,6 +29,8 @@
 using namespace std;
 
 /* In testing of hourglass, it was found that delta = 0.05 works to give better surface area for a radii length scale of a a few units i.e. r=3 or 4. */
+
+
 
 int myRank, nProcs;
 int main(int argc, char * argv[]) {
@@ -39,32 +44,67 @@ int main(int argc, char * argv[]) {
 
     /* Creating a group of processes for each branch For 1e07 points, we want to have at least 10 processes per communicator group. This MPI_Comm_split uses color to assign a communicator to each process and their original rank as the key to assign a rank within the communicator */
     
-    int BranchSize = 10;
-    /* IMPORTANT: The way the code is setup now, ensure that there are only 4 branches in total i.e. total number of processors are BranchSize*4 */
+    /*
+     Currently we have have 3 levels of parallelization, where at each level the loop is broken into two.
+     1. Rg loop
+     2. dB sign i.e. whether bad cap centre is on good patch or bad patch
+     3. Rb loop
+     NOTE: Each of the loops divide the total available workers from the previous level into 2. So as such at each level n, where the n=1...3 there are 2^n groups of workers available such that the workers in any group of the last level works on the MC volume calculation part.
+     */
     
-    int color = myRank/BranchSize;
-    MPI_Comm branch_comm;
-    MPI_Comm_split(MPI_COMM_WORLD, color, myRank, &branch_comm);
-    int branch_rank, branch_size;
-    MPI_Comm_rank(branch_comm, &branch_rank);
-    MPI_Comm_size(branch_comm, &branch_size);
-    //printf("original rank=%d\t branch_rank=%d branch_size=%d\n", myRank, branch_rank, branch_size);
+    int n_branches_per_node;
+    int levels;
+    if(myRank == 0)
+    {
+        /* Reading n_branches_per_node from command line */
+        n_branches_per_node  = atoi(argv[1]);
+        levels = atoi(argv[2]);
+    }
+    MPI_Bcast (&n_branches_per_node, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast (&levels, 1, MPI_INT, 0, MPI_COMM_WORLD);
     
-    /* Creating another communicator containing the roots of each communicator so that V, SA..etc. data can be transferred from them to the original root */
-    int color_roots = ( myRank%BranchSize == 0) ? myRank%BranchSize : 1;
+    std::vector<int> worker_colors_per_level (levels); //This will have the color of each worker at each level.
+    std::vector<int> num_workers_per_groups_per_level (levels);
+    for(int i=0; i < levels; i++)
+    {
+        int group_size = pow(n_branches_per_node, i+1);
+        num_workers_per_groups_per_level[i] = nProcs/group_size; //Ensure that they are multiples
+        worker_colors_per_level[i] = myRank/num_workers_per_groups_per_level[i];
+        printf("level =%d\t rank = %d\t worker_colors_per_level = %d\n", i+1, myRank, worker_colors_per_level[i]);
+    }
+    
+    std::vector<MPI_Comm> branch_comm_levels(levels);
+    std::vector<int> level_branch_rank(levels);
+    std::vector<int> level_branch_size(levels);
+    for(int i=0; i < levels; i++)
+    {
+        MPI_Comm_split(MPI_COMM_WORLD, worker_colors_per_level[i], myRank, &branch_comm_levels[i]); //color
+        
+        MPI_Comm_rank(branch_comm_levels[i], &level_branch_rank[i]);
+        MPI_Comm_size(branch_comm_levels[i], &level_branch_size[i]);
+        printf("level = %d\t original rank=%d\t branch_rank=%d branch_size=%d\n", i, myRank, level_branch_rank[i], level_branch_size[i]);
+    }
+    
+    //MPI_Comm_split(MPI_COMM_WORLD, worker_colors_per_level[levels-1], myRank, &branch_comm); //color
+    
+    
+    /* Creating another communicator containing the roots of each communicator so that V, SA..etc, data can be transferred from them to the original root */
+    //Here color_roots correspond to the colors of processes in each group of the last level.
+    
+    int color_roots = ( myRank%num_workers_per_groups_per_level[levels-1] == 0) ? 0 : 1 ;
     MPI_Comm roots_comm;
     MPI_Comm_split(MPI_COMM_WORLD, color_roots, myRank, &roots_comm);
     int roots_rank, roots_size;
     MPI_Comm_rank(roots_comm, &roots_rank);
     MPI_Comm_size(roots_comm, &roots_size);
-    //printf("original rank=%d\t color_roots=%d roots_rank=%d roots_size= %d\n", myRank,color_roots, roots_rank, roots_size);
     
     /// Inputs from command line ///
     
     double Rho ;
     /* Surface related variables */
     double z_surface = 0.0; //Unless stated otherwise
-    double pG_width_x, pG_width_y, pB_width_x, pB_width_y, theta_cg, theta_cb;
+    double good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width;
+    double theta_good, theta_bad;
     int num_patches;
     
     /* Cluster related variables */
@@ -73,12 +113,15 @@ int main(int argc, char * argv[]) {
     
     
     /* Monte-  Carlo related variables */
+    double point_density;
     int n_points;
-    int aSeed[3];
+    int mc_seed[3];
     double delta;
+    double starting_box_dim;
     
-    /* CellList related variables */
-    std::vector<double> R_cutoff(3, 0.0);
+    
+    //Dynamic box related variables
+    double extension_length; //The fixed length for box extension in each direction
     
     /* I/O related variable */
 //    FILE* V_SA_spreadoutDataFile;
@@ -88,58 +131,58 @@ int main(int argc, char * argv[]) {
     
 
     
-    
+    int start_index = 2 ; // This is the start index for reading inputs from command line.
+
     /* Reading all variables from command line */
     if(myRank == 0)
     {
         /* Reading all variables from command line */
-        pG_width_x  = atof(argv[1]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pG_width_y  = atof(argv[2]);     //y width of the good patches (same for all good patches) (Angstroms)
-        pB_width_x  = atof(argv[3]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pB_width_y  = atof(argv[4]);     //y width of the good patches (same for all good patches) (Angstroms)
-        theta_cg    = atof(argv[5]);       //Good patch contact angle
-        theta_cb    = atof(argv[6]);       //Bad patch contact angle
-        d_Rg        = atof(argv[7]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
-        d_Rb        = atof(argv[8]);       //increments in bad patch cap radius  (Angstroms)
-        Rg_max      = atof(argv[9]);       //maximum limit of good patch cap.    (Angstroms)
-        Rb_max      = atof(argv[10]);       //maximum limit of bad patch cap      (Angstroms)
-        n_points    = atoi(argv[11]);       //Total points in millions in the box for MC
-        n_points    = n_points*1e06;
-        aSeed[0]    = atoi(argv[12]);       //Seed in x-direction for MC
-        aSeed[1]    = atoi(argv[13]);       //Seed in y-direction for MC
-        aSeed[2]    = atoi(argv[14]);       //Seed in z-direction for MC
-        delta       = atof(argv[15]);      //buffer region width=(2*\delta) for surface points (Angstroms)
-        R_cutoff[0] = atof(argv[16]);   //Cell size in x for CellList       (Angstroms)
-        R_cutoff[1] = atof(argv[17]);   //Cell size in y for CellList       (Angstroms)
-        R_cutoff[2] = atof(argv[18]);   //Cell size in z for CellList       (Angstroms)
-        Rho         = atof(argv[19]);   //Moles per m3
-        num_patches = atoi(argv[20]);
-        tag.assign(argv[21]);
+        good_patch_x_width  = atof(argv[start_index + 1]);     //x width of the good patches (same for all good patches) (Angstroms)
+        good_patch_y_width  = atof(argv[start_index + 2]);     //y width of the good patches (same for all good patches) (Angstroms)
+        bad_patch_x_width   = atof(argv[start_index + 3]);     //x width of the good patches (same for all good patches) (Angstroms)
+        bad_patch_y_width   = atof(argv[start_index + 4]);     //y width of the good patches (same for all good patches) (Angstroms)
+        theta_good          = atof(argv[start_index + 5]);       //Good patch contact angle
+        theta_bad           = atof(argv[start_index + 6]);       //Bad patch contact angle
+        d_Rg                = atof(argv[start_index + 7]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
+        d_Rb                = atof(argv[start_index + 8]);       //increments in bad patch cap radius  (Angstroms)
+        Rg_max              = atof(argv[start_index + 9]);       //maximum limit of good patch cap.    (Angstroms)
+        Rb_max              = atof(argv[start_index + 10]);       //maximum limit of bad patch cap      (Angstroms)
+        point_density       = atof(argv[start_index + 11]);       //Total density of points.
+        mc_seed[0]          = atoi(argv[start_index + 12]);       //Seed in x-direction for MC
+        mc_seed[1]          = atoi(argv[start_index + 13]);       //Seed in y-direction for MC
+        mc_seed[2]          = atoi(argv[start_index + 14]);       //Seed in z-direction for MC
+        delta               = atof(argv[start_index + 15]);      //buffer region width=(2*\delta) for surface points (Angstroms)
+        Rho                 = atof(argv[start_index + 16]);   //Moles per m3
+        num_patches         = atoi(argv[start_index + 17]);
+        extension_length    = atof(argv[start_index + 18]);
+                        tag.assign(argv[start_index + 19]);
+        starting_box_dim = atof(argv[start_index + 20]);
         printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
-        printf("n_points = %d\n",n_points);
         printf("Rg_max, Rb_max = %10.5f %10.5f\n",Rg_max, Rb_max);
-        printf("p_width_good = [%10.5f %10.5f] p_width_bad = [%10.5f %10.5f]\n", pG_width_x, pG_width_y, pB_width_x, pB_width_y);
+        printf("p_width_good = [%10.5f %10.5f] p_width_bad = [%10.5f %10.5f]\n", good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width);
         printf("delta=%10.5f\n",delta);
+        printf("density = %10.5f\n", point_density);
         
     }
 
     //Broadcasting all user input to the parallel processes.
-    MPI_Bcast (&pG_width_x, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&pG_width_y, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&pB_width_x, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&pB_width_y, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&theta_cg, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&theta_cb, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&good_patch_x_width, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&good_patch_y_width, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&bad_patch_x_width, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&bad_patch_y_width, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&theta_good, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&theta_bad, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&d_Rg, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&d_Rb, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&Rg_max, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&Rb_max, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&n_points, 1, MPI_INT, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&aSeed[0], 3, MPI_INT, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&point_density, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&mc_seed[0], 3, MPI_INT, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&delta, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
-    MPI_Bcast (&R_cutoff[0], 3, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&Rho, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&num_patches, 1, MPI_INT, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&extension_length, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&starting_box_dim, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
 
     //MPI_Bcast (&startingRg, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
 
@@ -162,77 +205,35 @@ int main(int argc, char * argv[]) {
             exit(1);
         }
 
-        //MPI_Send(tag.c_str(), (int)tag.size(), MPI_CHAR, 1, 0, MPI_COMM_WORLD);
-
     }
-//    if(myRank == 1) //Rank 1 will be used for not spreadout cluster
-//    {
-//        /* This is a way to dynamically recieve message without knowing the size of the incoming message. https://mpitutorial.com/tutorials/dynamic-receiving-with-mpi-probe-and-mpi-status/*/
-//        MPI_Status status;
-//        int count;
-//        MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
-//        MPI_Get_count(&status, MPI_CHAR, &count);
-//        char* tag_cstr = new char [count];
-//        MPI_Recv(tag_cstr, count, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-//        tag = tag_cstr;
-//        std::cout<<"Tag in rank 1 = "<<tag<<std::endl ;
-//        delete [] tag_cstr;
-//
-//        std::string V_SA_not_spredoutDataFileName = tag + "_V_SA_data_notspreadout.txt";
-//        FILE* V_SA_not_spredoutDataFile = fopen(V_SA_not_spredoutDataFileName.c_str(), "w");
-//        if(V_SA_not_spredoutDataFile == NULL)
-//        {
-//            printf("Error opening not spreadout output file\n");
-//            exit(1);
-//        }
-//    }
-
 
     /* Settings for 5 Patch surface*/
 
-    /* Setting the centreal good patch */
-    std::vector<double> centre_good(3);   //Centre of the good patch. Only x-y
-    centre_good[0] = 0.0; centre_good[1] = 0.0; centre_good[2] = z_surface;
-    std::vector<double> dim_Good(2,0.0);
-    std::vector<double> dim_Bad(2,0.0);
-
-    dim_Good[0] = pG_width_x; dim_Good[1] = pG_width_y; //Common dimensions for all Good patches
-    dim_Bad[0] = pB_width_x; dim_Good[1] = pB_width_y; //Common dimensions for all Bad patches
-    Patch good_patch (theta_cg, centre_good, dim_Good);
-
-    /* Setting the secondry good patches */
-    std::vector<double> centre_good_left(3); //(-2a, 0, 0)
-    std::vector<double> centre_good_right(3);//(2a, 0, 0)
-    centre_good_left[0] = -(pG_width_x + pB_width_x); centre_good_left[1] = 0.0; centre_good_left[2] = z_surface;
-    centre_good_right[0] = pG_width_x + pB_width_x; centre_good_right[1] = 0.0; centre_good_right[2] = z_surface;
-    Patch good_patch_left (theta_cg, centre_good_left, dim_Good);
-    Patch good_patch_right (theta_cg, centre_good_right, dim_Good);
-
-    /* Setting the bad patches */
-    std::vector<double> centre_bad_left(3); //(-a, 0, 0)
-    std::vector<double> centre_bad_right(3);//(a, 0, 0)
-    centre_bad_left[0] = -(pG_width_x + pB_width_x)/2.0; centre_bad_left[1] = 0.0; centre_bad_left[2] = z_surface;
-    centre_bad_right[0] = (pG_width_x + pB_width_x)/2.0; centre_bad_right[1] = 0.0; centre_bad_right[2] = z_surface;
-    Patch bad_patch_left (theta_cb, centre_bad_left, dim_Bad);
-    Patch bad_patch_right (theta_cb, centre_bad_right, dim_Bad);
-
-    /* Setting the surface */
-    std::vector<Patch> list_of_patches {good_patch, bad_patch_left, bad_patch_right, good_patch_left, good_patch_right};
-    std::vector<std::vector<double> > orientations {centre_good, centre_bad_left, centre_bad_right, centre_good_left, centre_good_right};
-
-    Stripes stripes (list_of_patches, orientations, z_surface);
-
+    SurfaceSetup surface_setup (int num_patches, double z_surface, double good_patch_x_width, double good_patch_y_width, double bad_patch_x_width, double bad_patch_y_width, double theta_good, double theta_bad);
+    Stripes stripes = surface_setup.get_stripes();
+    Surface *surface_ptr = &stripes;
     /* Setting the height of the box to R_max */
-    double box_height = (Rg_max >= Rb_max) ? 2.0*Rg_max : 2.0*Rb_max ;
-    //(theta_cg < pi/2.0) ? Rg_max : 2.0*Rg_max ;
+    //double box_height = starting_box_dim;
+    //(Rg_max >= Rb_max) ? 2.0*Rg_max : 2.0*Rb_max ;
 
     /* Calculating box. Here box[i] = 2-dimensional and represents the boundaries of the box in each direction. */
-    stripes.calc_box(box_height);
-     /*Setting the MC engine */
+//    stripes.calc_box(box_height);
+    stripes.initial_box(starting_box_dim);
+    double initial_box_volume = stripes.box_volume();
+    n_points = (int) (initial_box_volume * point_density);
     
-    MC mc_engine (n_points, stripes.box, aSeed, branch_comm);
-    double density = ((double)n_points)/mc_engine.box_volume() ;
+     /*Setting the MC engine and dynamic box */
+    DynamicBox dynamic_box (stripes.box, extension_length);
+    
+    MC mc_engine (n_points, stripes.box, mc_seed, branch_comm);
+    MC* mc_engine_ptr = &mc_engine;
+    
+    CheckBoundary check_boundary (surface_ptr, mc_engine_ptr , &dynamic_box, point_density);
+    CheckBoundary* check_boundary_ptr = &check_boundary ;
+    Shape* Cluster_shape_ptr;
 
+   
+    
     if(myRank == 0)
     {
         for(size_t i =0; i<stripes.box.size(); i++)
@@ -243,18 +244,12 @@ int main(int argc, char * argv[]) {
             }
         }
         printf("box_volume = %10.5f\n", mc_engine.box_volume());
-        printf("potency good=%10.10f\t potency bad=%10.10f\n",potency_factor(theta_cg), potency_factor(theta_cb));
-        printf("density = %10.5f\n", density);
+        printf("potency good=%10.10f\t potency bad=%10.10f\n",potency_factor(theta_good), potency_factor(theta_bad));
     }
-
-
-    /* Generating the cellList */
-    //CellList cell_list (mc_engine.get_points(), R_cutoff, mc_engine.get_box());
-    /*Setting up vectors for N_arrays */
 
     /* Setting up required variables and output data structures*/
     std::vector<int> dB_array, dG_array;
-    std::vector<double> Number_particles, Volume_array, SA_array, projected_SA_array, Radii_array;
+    std::vector<double> Number_particles, Volume_array, SA_array, projected_SA_array, Rg_array, Rb_array, Radii_array;
 
 
 
@@ -277,39 +272,42 @@ int main(int argc, char * argv[]) {
     std::vector<int> stripes_box_breach; //array of (0,1) to check box surface breach
 
     std::vector<double> mc_volume_SA(2,0.0);
-
-    Shape* Cluster_shape_ptr;
-
+    
+//    std::vector<int> Rg_loop_start_end;
+//
+//    Rg_loop_start_end = getLoopStartEnd (len_Rg, worker_colors_per_level[0]);
+//    printf("rank = %d Rg loop start end = %d %d %d\n", myRank, (int)Rg_loop_start_end.size(), Rg_loop_start_end[0], Rg_loop_start_end[1]);
+//
+//
+//     EvolveCluster evolve_cluster(check_boundary_ptr,  mc_engine_ptr, surface_ptr, mc_volume_SA, maximum_limits , increments, theta_cg,  theta_cb, patch_widths , z_surface, delta, Rho, myRank, worker_colors_per_level, num_workers_per_groups_per_level, color_roots, dB_array, Number_particles, Volume_array, SA_array,  projected_SA_array,  Rg_array, Rb_array, cyl_length_array, chord_length_array);
+    
     /* Starting the loop for Rg.*/
-    for(int i = 0 ; i< len_Rg; i++) // 1
+    for(int i = Rg_loop_start_end[0] ; i <= Rg_loop_start_end[1]; i++) // len_Rg
     {
 
         Rg = 0.0 + i*d_Rg ;  //  startingRg + i*d_Rg            //sphere's radius
 
         /* This is because Rg will be same for all leader (root) processes of each branch*/
+        
+        
+        double projected_rg = Rg*sin(theta_good); //projected radii of the circles
+        if(level_branch_rank[0] == 0)
+        {
+            printf("i=%d\t Rg = %10.10f\tprojected_rg = %10.10f\n",i, Rg, projected_rg);
+        }
 
-        double projected_rg = Rg*sin(theta_cg); //projected radii of the circles
-        if(myRank == 0)
-        {printf("i=%d\t",i); printf("projected_rg = %10.10f\n",projected_rg);}
-
-        Spherical_cap GoodCap (centre_good, projected_rg, theta_cg, z_surface);
+        Spherical_cap GoodCap (centre_good, projected_rg, theta_good, z_surface);
 
         Cluster_shape_ptr= &GoodCap;
-
+        
+        check_boundary.ManageBoxBreach(Cluster_shape_ptr);
+        
         stripes_bounds = stripes.monitor_cluster_spread(Cluster_shape_ptr);
 
         if(stripes_bounds[0] == 0) //Cap on central cluster is within bounds
         {
-            if(color == 0) //myRank == 0
+            if(worker_colors_per_level[levels-1] == 0) //These are the workers in the first group of the last level
             {
-                
-                if(color_roots == 0)
-                {
-                    Radii_array.push_back(Rg);
-                    Radii_array.push_back(0.0);
-                    Radii_array.push_back(0.0); //i.e. no cluster on the bad or the secondary good patch
-                }
-                
                 int zero = 0;
 
                 //Here I am using the mc_engine to calculate spherical caps volume as a second line of checking that the mc code is working correctly with the given parameters
@@ -323,8 +321,12 @@ int main(int argc, char * argv[]) {
 
                 std::vector<double> local_compcluster_projected_SA(5,0.0);
                 local_compcluster_projected_SA[0] = projected_SA;
+                
                 if(color_roots == 0)
                 {
+                    Radii_array.push_back(Rg);
+                    Radii_array.push_back(0.0);
+                    Radii_array.push_back(0.0); //i.e. no cluster on the bad or the secondary good patch
                     Volume_array.push_back(Volume);
                     SA_array.push_back(SA);
 
@@ -341,17 +343,13 @@ int main(int argc, char * argv[]) {
         }
         else
         {
-
+            
             /* This is for projected radii i.e. rb and rg are projected radii not sphere radius.
              rb >= sqrt(rg^2 - (a/2)^2 ) */
-
-            double projected_rb_min = sqrt(projected_rg*projected_rg - ((pG_width_x*pG_width_x)/4.0));
-            Rb_min = projected_rb_min/(double)sin(theta_cb) ; //Be careful to not have a theta that is 0 or 180
-
+            double projected_rb_min = sqrt(projected_rg*projected_rg - ((good_patch_x_width*good_patch_x_width)/4.0));
+            Rb_min = projected_rb_min/(double)sin(theta_bad) ; //Be careful to not have a theta that is 0 or 180
+            
             len_Rb = (int) ((Rb_max-Rb_min)/d_Rb) + 1;
-
-            //Two cases for each Rb value. +1: spread out, -1: not spread out
-            /* Even though both color==1 and color==3 will do the same calculation as color==0 and color==2 respectively for Rg==0, the quantities are only added to the arrays for color==0 and color==2 for Rg==0*/
             int dB_list;
             if (color == 0 || color == 1)
             {
@@ -363,6 +361,10 @@ int main(int argc, char * argv[]) {
             }
             else {throw std::invalid_argument("Number of processes is not 4 for 5 patches");}
 
+
+            //Two cases for each Rb value. +1: spread out, -1: not spread out
+            /* Even though both color==1 and color==3 will do the same calculation as color==0 and color==2 respectively for Rg==0, the quantities are only added to the arrays for color==0 and color==2 for Rg==0*/
+            
                 for(int j = 0 ; j<len_Rb; j++)
                 {
                     if(myRank == 0)
@@ -372,15 +374,15 @@ int main(int argc, char * argv[]) {
                     Rb = Rb_min + j*d_Rb ;
 
                     if(Rb > Rb_max){throw std::invalid_argument("Invalid Rb > Rb_max");}
-                    double projected_rb = Rb * (double)sin(theta_cb);
+                    double projected_rb = Rb * (double)sin(theta_bad);
 
-                    double inside_sq = (projected_rb*projected_rb) - (projected_rg*projected_rg) + ((pG_width_x*pG_width_x)/4.0);
+                    double inside_sq = (projected_rb*projected_rb) - (projected_rg*projected_rg) + ((good_patch_x_width*good_patch_x_width)/4.0);
 
                     if(abs(inside_sq)<1e-10 && inside_sq < 0.0) {inside_sq = 0.0;}
                     d_B = dB_list * sqrt(inside_sq) ;
                     /* Symmetric caps on either side of central patch */
-                    c_bad_left[0] = -(pG_width_x/2.0) - d_B;
-                    c_bad_right[0] = (pG_width_x/2.0) + d_B;
+                    c_bad_left[0] = -(good_patch_x_width/2.0) - d_B;
+                    c_bad_right[0] = (good_patch_x_width/2.0) + d_B;
 
                     /*Checking that centres satisfy cb1 < 0 and cb2 > 0 and */
                     if(c_bad_left[0] >= 0.0 || c_bad_right[0] <= 0.0)
@@ -396,8 +398,8 @@ int main(int argc, char * argv[]) {
                         throw std::invalid_argument("Invalid Cb1 and Cb2");
                     }
 
-                    Spherical_cap BadCap_left(c_bad_left, projected_rb, theta_cb, z_surface);
-                    Spherical_cap BadCap_right(c_bad_right, projected_rb, theta_cb, z_surface);
+                    Spherical_cap BadCap_left(c_bad_left, projected_rb, theta_bad, z_surface);
+                    Spherical_cap BadCap_right(c_bad_right, projected_rb, theta_bad, z_surface);
                     std::vector<Spherical_cap> capsList = {GoodCap, BadCap_left, BadCap_right};
 
                     Composite_cluster Comp_cluster (capsList, stripes);
@@ -484,9 +486,9 @@ int main(int argc, char * argv[]) {
                     {
                         if(stripes_bounds[1]==1 && stripes_bounds[2]==1)
                         {
-                            double dG1 = pB_width_x - d_B ; /* b - dB1*/
+                            double dG1 = bad_patch_x_width - d_B ; /* b - dB1*/
                             double projected_rg_secondary_min = sqrt(projected_rb*projected_rb - dG1*dG1);
-                            Rg_secondary_min = projected_rg_secondary_min/(double)sin(theta_cg) ; //Be careful to not have a theta that is 0 or 180
+                            Rg_secondary_min = projected_rg_secondary_min/(double)sin(theta_good) ; //Be careful to not have a theta that is 0 or 180
                             len_Rg_secondary = (int) ((Rg_max-Rg_secondary_min)/d_Rg) + 1;
 
                             int dG_secondary_list;
@@ -520,15 +522,15 @@ int main(int argc, char * argv[]) {
                                     Radii_array.push_back(Rg_secondary);
                                 }
 
-                                double projected_rg_secondary = Rg_secondary * (double)sin(theta_cg);
+                                double projected_rg_secondary = Rg_secondary * (double)sin(theta_good);
 
                                 double inside_sq_Rg_second = (projected_rg_secondary*projected_rg_secondary) - (projected_rb*projected_rb) + (dG1*dG1);
 
                                 if(abs(inside_sq_Rg_second)<1e-10 && inside_sq_Rg_second < 0.0) {inside_sq_Rg_second = 0.0;}
                                 d_G1 = dG_secondary_list * sqrt(inside_sq_Rg_second);
 
-                                c_good_left[0] = -(pB_width_x + (pG_width_x/2.0)) - d_G1;
-                                c_good_right[0] = (pB_width_x + (pG_width_x/2.0)) + d_G1;
+                                c_good_left[0] = -(bad_patch_x_width + (good_patch_x_width/2.0)) - d_G1;
+                                c_good_right[0] = (bad_patch_x_width + (good_patch_x_width/2.0)) + d_G1;
 
                                 /*Checking that centres satisfy rb1 - (cb1 - cg1)< rg1 < rb1 + (cb1 - cg1)
                                  and rb2 - (cg2 - cb2)< rg2 < rb2 + (cg2 - cb2)*/
@@ -547,8 +549,8 @@ int main(int argc, char * argv[]) {
                                     break;
                                 }
 
-                                Spherical_cap GoodCap_left(c_good_left, projected_rg_secondary, theta_cg, z_surface);
-                                Spherical_cap GoodCap_right(c_good_right, projected_rg_secondary, theta_cg, z_surface);
+                                Spherical_cap GoodCap_left(c_good_left, projected_rg_secondary, theta_good, z_surface);
+                                Spherical_cap GoodCap_right(c_good_right, projected_rg_secondary, theta_good, z_surface);
                                 std::vector<Spherical_cap> capsList_good_second = {GoodCap, BadCap_left, BadCap_right, GoodCap_left, GoodCap_right};
 
                                 Composite_cluster Comp_cluster_good_second (capsList_good_second, stripes);
@@ -733,3 +735,29 @@ int main(int argc, char * argv[]) {
     MPI_Finalize();
     return EXIT_SUCCESS;
 }
+
+
+// Extra code
+// MPI_Send(tag.c_str(), (int)tag.size(), MPI_CHAR, 1, 0, MPI_COMM_WORLD);
+//    if(myRank == 1) //Rank 1 will be used for not spreadout cluster
+//    {
+//        /* This is a way to dynamically recieve message without knowing the size of the incoming message. https://mpitutorial.com/tutorials/dynamic-receiving-with-mpi-probe-and-mpi-status/*/
+//        MPI_Status status;
+//        int count;
+//        MPI_Probe(0, 0, MPI_COMM_WORLD, &status);
+//        MPI_Get_count(&status, MPI_CHAR, &count);
+//        char* tag_cstr = new char [count];
+//        MPI_Recv(tag_cstr, count, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+//        tag = tag_cstr;
+//        std::cout<<"Tag in rank 1 = "<<tag<<std::endl ;
+//        delete [] tag_cstr;
+//
+//        std::string V_SA_not_spredoutDataFileName = tag + "_V_SA_data_notspreadout.txt";
+//        FILE* V_SA_not_spredoutDataFile = fopen(V_SA_not_spredoutDataFileName.c_str(), "w");
+//        if(V_SA_not_spredoutDataFile == NULL)
+//        {
+//            printf("Error opening not spreadout output file\n");
+//            exit(1);
+//        }
+//    }
+

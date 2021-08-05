@@ -154,28 +154,28 @@ int main(int argc, char * argv[]) {
     if(myRank == 0)
     {
         /* Reading all variables from command line */
-        pG_width_x  = atof(argv[start_index +2]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pG_width_y  = atof(argv[start_index +3]);     //y width of the good patches (same for all good patches) (Angstroms)
-        pB_width_x  = atof(argv[start_index +4]);     //x width of the good patches (same for all good patches) (Angstroms)
-        pB_width_y  = atof(argv[start_index +5]);     //y width of the good patches (same for all good patches) (Angstroms)
-        theta_cg    = atof(argv[start_index +6]);       //Good patch contact angle
-        theta_cb    = atof(argv[start_index +7]);       //Bad patch contact angle
-        d_Rg        = atof(argv[start_index +8]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
-        d_Rb        = atof(argv[start_index +9]);       //increments in bad patch cap radius  (Angstroms)
-        d_cyl_length= atof(argv[start_index +10]);
-        d_chord_length= atof(argv[start_index +11]);
-        Rg_max      = atof(argv[start_index +12]);       //maximum limit of good patch cap.    (Angstroms)
-        Rb_max      = atof(argv[start_index +13]);
-        cyl_max     = atof(argv[start_index +14]);        //maximum limit of bad patch cap      (Angstroms)
-        point_density = atof(argv[start_index +15]);     // Constant point density for MC. (points/Angstrom^3)
-        aSeed[0]    = atoi(argv[start_index +16]);       //Seed in x-direction for MC
-        aSeed[1]    = atoi(argv[start_index +17]);       //Seed in y-direction for MC
-        aSeed[2]    = atoi(argv[start_index +18]);       //Seed in z-direction for MC
-        delta       = atof(argv[start_index +19]);      //buffer region width=(2*\delta) for surface points (Angstroms)
-        Rho         = atof(argv[start_index +20]);   //Moles per m3
-        num_patches = atoi(argv[start_index +21]);
-        extension_length = atof(argv[22]);
-        tag.assign(argv[23]);
+        pG_width_x  = atof(argv[start_index + 2]);     //x width of the good patches (same for all good patches) (Angstroms)
+        pG_width_y  = atof(argv[start_index + 3]);     //y width of the good patches (same for all good patches) (Angstroms)
+        pB_width_x  = atof(argv[start_index + 4]);     //x width of the good patches (same for all good patches) (Angstroms)
+        pB_width_y  = atof(argv[start_index + 5]);     //y width of the good patches (same for all good patches) (Angstroms)
+        theta_cg    = atof(argv[start_index + 6]);       //Good patch contact angle
+        theta_cb    = atof(argv[start_index + 7]);       //Bad patch contact angle
+        d_Rg        = atof(argv[start_index + 8]);       //increments in good patch cap radius (Angstroms i.e. d_Rg=0.05 A)
+        d_Rb        = atof(argv[start_index + 9]);       //increments in bad patch cap radius  (Angstroms)
+        d_cyl_length= atof(argv[start_index + 10]);
+        d_chord_length= atof(argv[start_index + 11]);
+        Rg_max      = atof(argv[start_index + 12]);       //maximum limit of good patch cap.    (Angstroms)
+        Rb_max      = atof(argv[start_index + 13]);
+        cyl_max     = atof(argv[start_index + 14]);        //maximum limit of bad patch cap      (Angstroms)
+        point_density = atof(argv[start_index + 15]);     // Constant point density for MC. (points/Angstrom^3)
+        aSeed[0]    = atoi(argv[start_index + 16]);       //Seed in x-direction for MC
+        aSeed[1]    = atoi(argv[start_index + 17]);       //Seed in y-direction for MC
+        aSeed[2]    = atoi(argv[start_index + 18]);       //Seed in z-direction for MC
+        delta       = atof(argv[start_index + 19]);      //buffer region width=(2*\delta) for surface points (Angstroms)
+        Rho         = atof(argv[start_index + 20]);   //Moles per m3
+        num_patches = atoi(argv[start_index + 21]);
+        extension_length = atof(argv[start_index + 22]);
+        tag.assign(argv[start_index + 23]);
         printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
         printf("point_density = %10.10f\n",point_density);
         printf("Rg_max, Rb_max = %10.5f %10.5f\n",Rg_max, Rb_max);
@@ -285,8 +285,8 @@ int main(int argc, char * argv[]) {
     std::vector<int> stripes_bounds; //array of (0,1) to check crossing of boundaries
     std::vector<int> box_breach; //array of (0,1) to check box surface breach
     
-    int len_Rg = (int) ((Rg_max-0.0)/d_Rg); //+ 1; Removed the addition of one because equality now in for loop.
-    int len_cyl = (int) ((cyl_max-0.0)/d_cyl_length); //+ 1;
+    int len_Rg = (int) ((Rg_max-0.0)/d_Rg) + 1; //Added 1 back because the last index that should be counted was not. Removed the addition of one because equality now in for loop.
+    int len_cyl = (int) ((cyl_max-0.0)/d_cyl_length) + 1;
     std::vector<int> Rg_loop_start_end, Cyl_loop_start_end;
     
     Rg_loop_start_end = getLoopStartEnd (len_Rg, worker_colors_per_level[0]);

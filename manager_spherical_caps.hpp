@@ -43,8 +43,8 @@ public:
     void setup(char* argv[], int start_index);
     
     //evolve
-    int evolve();
-    int evolve_profiling();
+    int evolve(int);
+    int evolve_profiling(int);
     void dummy_evolve(int);
     
     void print_to_file();
@@ -63,6 +63,10 @@ public:
     //free comms
     void free_MPI_comms();
     
+    int get_read_args(){return args_read;}
+    
+    //Temporary access to evolve_spherical_cap
+    EvolveSphericalCap get_evolve_spherical_cap() {return evolve_spherical_cap;}
     
 protected:
     int myRank, nProcs;
@@ -87,8 +91,9 @@ protected:
     double extension_length;
     /* Patch variables*/
     int last_patch_isinfinite;
+    int starting_patch_is_bad;
     /* MC variables */
-    int n_points;
+    int n_points, n_max_points;
     double point_density;
     int mc_seed[3];
     double delta;
@@ -109,6 +114,7 @@ protected:
     void broadcast_data_to_workers();
     void send_tag();
     void recieve_tag();
+    int args_read;
     
     /* Setup functions */
     void setup_surface();
@@ -125,6 +131,7 @@ protected:
     SphericalCapInput input_variables;
     SphericalCapOutput gathered_output_variables;
 
+    /* Input for starting from a particular point */
     
 //    /* Size variables related to gathering*/
 //    int clstr_centre_modifier_size;

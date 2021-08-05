@@ -15,13 +15,13 @@ Patch::Patch(){
 Patch::~Patch(){
 }
 
+//Constructor for finite patch with centre and finite dimensions
 Patch::Patch(double theta_c, std::vector<double>& centre, std::vector<double>& dims){
     dimensions = dims;
     contact_angle = theta_c;
-    patch_centre.resize(centre.size());
-    patch_centre[0] = centre[0]; //X
-    patch_centre[1] = centre[1]; //Y
+    patch_centre = centre;
 }
+
 
 std::vector<double> Patch::patch_boundaries() //0:Xmin, 1:Xmax, 2:Ymin, 3:Ymax
 {

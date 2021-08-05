@@ -15,6 +15,8 @@ double free_energy (double Rho, double Mu, double Sigma, double volume, double S
     double Vcomp = -1*volume* Rho * Mu;
     double Scomp = Sigma*SA;
     
+    printf("volume = %10.10f\t Rho = %10.10f\t Mu=%10.10f\t Vcomp=%10.10f\t Scomp=%10.10f\n", volume*1e30, Rho, Mu, Vcomp/(kb*T), Scomp/(kb*T));
+    
     double theta_patch ;
     double Sproj_comp = 0;
     
@@ -45,6 +47,7 @@ double free_energy (double Rho, double Mu, double Sigma, double volume, double S
             printf("All the patches must be covered \n"); abort();
         }
         Sproj_comp = Sproj_comp + cos(theta_patch)*projected_SA[p];
+        printf("p = %d theta_patch=%10.10f\t projected_SA[p]=%10.10f\t Sproj_comp=%10.10f\n", p, theta_patch, projected_SA[p], Sproj_comp);
     }
     
     Sproj_comp = -Sigma*Sproj_comp;

@@ -21,18 +21,21 @@
 #include "FreeEnergy.hpp"
 #include "periodic_io.hpp"
 
+//#define MAX_MC_POINTS 5e08
 
 class EvolveSphericalCap
 {
 public:
     EvolveSphericalCap();
     ~EvolveSphericalCap();
-    EvolveSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput*, SphericalCapInput*, CheckBoundary*, MC* , int, PeriodicIO*);
+    EvolveSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput*, SphericalCapInput*, CheckBoundary*, MC* , int, PeriodicIO*, int starting_patch_is_bad);
     
     void init_cap_identifier();
     
     int evolve ();
     int evolve_profiling();
+    int evolve_constant_modifiers();
+    int evolve_profiling_constant_modifiers();
     
     /*dummy evolves for testing only*/
     int dummy_evolve(int);
@@ -61,6 +64,13 @@ public:
     
     //printing surface points
     
+    
+    //Temporary setters
+    void set_cluster_shape_ptr(Shape*);
+    void set_growing_cap_index(int);
+    int artificial_evolve(std::vector<double> input_Radii);
+    void print_output_variables();
+    
 protected:
     int myRank, nProcs;
     /* Member classes */
@@ -81,10 +91,12 @@ protected:
     double theta_bad;
     double delta;
     double Rho;
+    int MAX_MC_POINTS;
     std::vector<double> centre_left_cap;
     std::vector<double> centre_right_cap;
     std::vector<double> mc_volume_SA;
     
+    int starting_patch_is_bad;
     
     /* Cap-related variables */
     CapType cap_type;
@@ -132,6 +144,7 @@ protected:
     std::vector<int> Radius_loop_start_end;
     
     int identify_current_cap_growth_conditions ();
+    int identify_current_cap_growth_conditions_constant_modifiers();
     void get_balanced_modifier_array(int, bool);
     
     /* Output variables struct */
@@ -141,10 +154,14 @@ protected:
     void update_growing_cap_identifier();
     void reset_growing_cap_identifier();
     void reset_growing_capsList();
-    void reset_current_cap_growth_conditions();
+    void reset_current_growth_conditions_array();
+    
     /* Setting up next cluster evolution*/
     void setup_next_evolve ();
     void reset_evolve ();
+    
+    void setup_next_evolve_constant_modifier();
+    void reset_evolve_constant_modifier();
 
     /* Adding quantities to the global arrays*/
     void add_radii_and_centre_modifier();
@@ -166,24 +183,17 @@ protected:
     void clear_grid_points();
     void print_grid_points_and_cost();
     
+    //calc volume helper functions
+    void calc_vol_SA_normal();
+    void calc_vol_SA_virtual_points();
+    
     //Dummy evolve
     int dummy_decider;
+    
+    int artificial_growth_conditions(std::vector<double>);
+    void artificial_reset_evolve(std::vector<double>);
 };
 
-
-//class ProfilingSphericalCap:public EvolveSphericalCap
-//{
-//public:
-//    ProfilingSphericalCap();
-//    ProfilingSphericalCap(ParallelProcess*, Stripes, SphericalCapOutput*, SphericalCapInput*, CheckBoundary*, MC* , int, PeriodicIO*);
-//    ~ProfilingSphericalCap();
-//    int evolve_profiling();
-//
-//protected:
-//
-//}
-
-//int evolve_profiling();
 
 
 #endif /* evolve_spherical_caps_hpp */

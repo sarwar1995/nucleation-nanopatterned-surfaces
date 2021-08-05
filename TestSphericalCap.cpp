@@ -87,11 +87,11 @@ int main(int argc, const char * argv[])
         
         Spherical_cap GoodCap (centre_good, projected_rg, theta_cg, z_surface);
         Shape_ptr = &GoodCap;
-        mc_volume_SA = mc_engine.calc_volume_SA(Shape_ptr, delta);
+//        mc_volume_SA = mc_engine.calc_volume_SA(Shape_ptr, delta);
         
-        Volume = mc_volume_SA[0]; //GoodCap.getVolume();
+        Volume =  GoodCap.getVolume(); //mc_volume_SA[0];
         Volume = Volume * 1e-30; //This converts the volume from Ang^3 to m^3
-        SA = mc_volume_SA[1] ; //GoodCap.getSA(); //
+        SA =  GoodCap.getSA(); //mc_volume_SA[1] ;
         projected_SA = GoodCap.projected_SA();
         SA = SA* 1e-20; projected_SA = projected_SA * 1e-20;
         G = free_energy_singlecap(Rho, Mu, Sigma, Volume, SA, projected_SA, theta_cg, T);

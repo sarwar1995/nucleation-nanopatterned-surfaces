@@ -19,7 +19,7 @@ CheckBoundary::~CheckBoundary()
 }
 
 CheckBoundary::CheckBoundary(Surface* surf, MC* mc , DynamicBox* dyn_box, double density):
-surface(surf), mc_engine(mc), dynamic_box(dyn_box), point_density(density)
+surface(surf), mc_engine(mc), dynamic_box(dyn_box), point_density(density), n_breach_cycles(0)
 {
     
 }
@@ -29,25 +29,53 @@ void CheckBoundary::ManageBoxBreach(Shape* shape)
 {
     cluster = shape;
     std::vector<int> box_breach = dynamic_box->CheckBoxBreach(cluster);
-//    for(int i=0 ; i<(int)box_breach.size(); i++)
-//    {
-//        printf("box_breach [%d] = %d\n", i, box_breach[i]);
-//    }
+    for(int i=0 ; i<(int)box_breach.size(); i++)
+    {
+        printf("box_breach [%d] = %d\n", i, box_breach[i]);
+    }
     
     std::vector<int> find_box_breach = FindBoxBreach(box_breach);
+//    for(int i=0 ; i<(int)find_box_breach.size(); i++)
+//    {
+//        printf("find_box_breach [%d] = %d\n", i, find_box_breach[i]);
+//    }
     if(!find_box_breach.empty()) //find_box_breach being empty suggests that box is not breached.
     {
         ExpandBox (find_box_breach);
         ManageBoxBreach(cluster);
-        //dynamic_box->print_box();
     }
     
 }
 
+int CheckBoundary::ManageBoxBreach_and_calc_Vol_SA(Shape* shape)
+{
+    cluster = shape;
+    std::vector<int> box_breach = dynamic_box->CheckVirtualBoxBreach(cluster);
+    
+    std::vector<int> find_box_breach = FindBoxBreach(box_breach);
+    if(!find_box_breach.empty()) //find_box_breach being empty suggests that box is not breached.
+    {
+        n_breach_cycles++;
+        ExpandBox_and_calc_Vol_SA (find_box_breach);
+        ManageBoxBreach_and_calc_Vol_SA(cluster);
+    }
+    //Once the expansion is done, the final vol SA calculation takes place here.
+    dynamic_box->reset_virtual_box(); //Resets the virtual box back to concrete box i.e. the one with points
+    if(n_breach_cycles == 0)
+    {return 0 ;}
+    else
+    {return 1 ;}
+}
+
+void CheckBoundary::reset_n_breach_cycles()
+{
+    n_breach_cycles = 0;
+}
 
 std::vector<int> CheckBoundary::FindBoxBreach(std::vector<int> box_breach)
 {
-    std::vector<int> result; //[breach in x-direction, y-direction, z-direction] <== Boolean (0,1)
+    //printf("box_breach = [%d %d %d %d %d]\n", box_breach[0], box_breach[1], box_breach[2], box_breach[3], box_breach[4]);
+    std::vector<int> result; //[breach in x-direction, y-direction, z-direction] <s== Boolean (0,1)
     for(int i=0; i<(int)box_breach.size(); i++)
     {
         if(box_breach[i] == 1)
@@ -84,19 +112,39 @@ std::vector<int> CheckBoundary::FindBoxBreach(std::vector<int> box_breach)
 void CheckBoundary::ExpandBox (std::vector<int> find_box_breach)
 {
     int direction_to_expand_in;
+//    printf("Inside ExpandBox\t find_box_breach.size()=%zu\n", find_box_breach.size());
     std::vector<std::vector<double>> new_box;
     int extra_points_per_added_box;
-//    printf("find_box_breach size = %d\n", (int)find_box_breach.size());
     for(size_t i=0 ; i<find_box_breach.size(); i++)
     {
-//        printf("find_box_breach [%d] = %d\n, ", (int)i, find_box_breach[i]);
+//        printf("find_box_breach i=%zu direction_to_expand_in=%d\n", i, find_box_breach[i]);
         direction_to_expand_in = find_box_breach[i];
         extra_points_per_added_box = dynamic_box->add_fix_box(direction_to_expand_in, point_density); //This also updates the box within the dynamic_box class
         new_box = dynamic_box->get_box();
+//        printf("After dynamic box add box extra_points_per_added_box=%d\n", extra_points_per_added_box);
+//        dynamic_box->print_box();
         mc_engine->add_points(new_box, direction_to_expand_in, extra_points_per_added_box); //This also updates the box within the MC class
+//        printf("After MC add points\n");
         surface -> update_box(new_box);
     }
 }
+
+void CheckBoundary::ExpandBox_and_calc_Vol_SA(std::vector<int> find_box_breach)
+{
+    int direction_to_expand_in;
+    std::vector<std::vector<double>> new_box;
+    int extra_points_per_added_box = 0;
+    for(size_t i=0 ; i<find_box_breach.size(); i++)
+    {
+        direction_to_expand_in = find_box_breach[i];
+        extra_points_per_added_box = dynamic_box->add_virtual_fix_box(direction_to_expand_in, point_density);
+        new_box = dynamic_box->get_virtual_box();
+        //printf("new_box = [%10.3f %10.3f][%10.3f %10.3f][%10.3f %10.3f] extra_points_per_added_box = %d\n", new_box[0][0], new_box[0][1], new_box[1][0], new_box[1][1], new_box[2][0], new_box[2][1], extra_points_per_added_box);
+        mc_engine->add_and_loop_points(cluster, new_box, direction_to_expand_in, extra_points_per_added_box); //This also updates the box within the MC class
+        surface -> update_box(new_box);
+    }
+}
+
 
 bool CheckBoundary::CheckSpherocylinderBadPatch(double cyl_length, int dB_sign, double patch_width, std::vector<double> centre_left, std::vector<double> centre_right, double projected_radius)
 {

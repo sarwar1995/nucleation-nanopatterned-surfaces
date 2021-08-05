@@ -64,12 +64,16 @@ void ManagerSphericalCaps::read_from_command_line(char* argv[], int start_index)
         tag.assign(argv[start_index + 19]);
         starting_box_dim = atof(argv[start_index + 20]);
         last_patch_isinfinite = atoi(argv[start_index + 21]); //Either 0 or 1
-        printf("%s\n", tag.c_str());
+        n_max_points = atoi(argv[start_index + 22]);
+        starting_patch_is_bad = atoi(argv[start_index + 23]);
+        args_read = 23;
+        printf("tag = %s\n", tag.c_str());
         printf("d_Rg, d_Rb = %10.5f %10.5f\n",d_Rg, d_Rb);
         printf("Rg_max, Rb_max = %10.5f %10.5f\n",Rg_max, Rb_max);
         printf("p_width_good = [%10.5f %10.5f] p_width_bad = [%10.5f %10.5f]\n", good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width);
         printf("delta=%10.5f\n",delta);
         printf("density = %10.5f\n", point_density);
+        printf("n_max_points=%d\n", n_max_points);
         tag_length = (int)strlen (tag.c_str()) + 1;
 //        tag_c_str = tag.c_str();
 //        strcpy(tag_c_str, tag_length);
@@ -100,6 +104,9 @@ void ManagerSphericalCaps::broadcast_data_to_workers()
     MPI_Bcast (&starting_box_dim, 1, MPI_DOUBLE, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&last_patch_isinfinite, 1, MPI_INT, 0,  MPI_COMM_WORLD);
     MPI_Bcast (&tag_length, 1, MPI_INT, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&n_max_points, 1, MPI_INT, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&starting_patch_is_bad, 1, MPI_INT, 0,  MPI_COMM_WORLD);
+    MPI_Bcast (&args_read, 1, MPI_INT, 0,  MPI_COMM_WORLD);
 //    MPI_Bcast((void*)tag.c_str(), tag_length, MPI_CHAR, 0, MPI_COMM_WORLD);
 //    printf("tag =%s for myRank=%d\n", tag.c_str(), myRank);
     send_tag();
@@ -127,11 +134,9 @@ void ManagerSphericalCaps::recieve_tag()
         int count;
         MPI_Probe(0, myRank, MPI_COMM_WORLD, &status);
         MPI_Get_count(&status, MPI_CHAR, &count);
-        std::cout<<"count in rank " << myRank <<" = "<<count<<std::endl;
         char* tag_cstr = new char [count];
         MPI_Recv(tag_cstr, count, MPI_CHAR, 0, myRank, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         tag.assign(tag_cstr);
-        std::cout<<"Tag in rank "<<myRank<<" = "<<tag<<std::endl ;
         delete [] tag_cstr;
     }
 }
@@ -153,16 +158,20 @@ void ManagerSphericalCaps::setup_surface()
 {
     SurfaceSetup surface_setup (num_patches, z_surface, good_patch_x_width, good_patch_y_width, bad_patch_x_width, bad_patch_y_width, theta_good, theta_bad, last_patch_isinfinite);
     stripes = surface_setup.create_new_stripes(); //This should work because the stripes object already exists in this class and the data returned form create_new_stripes is getting copied into the existing stripes object.
-    surface_ptr = &stripes; 
+    if(myRank==0)
+    {
+        stripes.print_all_patch_bounds();
+    }
+    surface_ptr = &stripes;
     stripes.initial_box(starting_box_dim);
     
-    if(myRank == 0)
-    {
-        std::vector<std::vector<double> > here_box;
-        here_box = (*surface_ptr).box;
-        printf("box volume via surface ptr inside = %10.5f\n", ((here_box[0][1] - here_box[0][0]) * (here_box[1][1] - here_box[1][0]) * (here_box[2][1] - here_box[2][0])));
-        
-    }
+//    if(myRank == 0)
+//    {
+//        std::vector<std::vector<double> > here_box;
+//        here_box = (*surface_ptr).box;
+//        printf("box volume via surface ptr inside = %10.5f\n", ((here_box[0][1] - here_box[0][0]) * (here_box[1][1] - here_box[1][0]) * (here_box[2][1] - here_box[2][0])));
+//
+//    }
     
 }
 
@@ -173,6 +182,7 @@ void ManagerSphericalCaps::setup_box()
     dynamic_box = DynamicBox (stripes.box, extension_length);
     if(myRank == 0)
     {
+        printf("n_starting_points=%d\n", n_points);
         dynamic_box.print_box();
         
     }
@@ -180,7 +190,7 @@ void ManagerSphericalCaps::setup_box()
 
 void ManagerSphericalCaps::setup_mc_and_boundary()
 {
-    mc_engine =  MC (n_points, stripes.box, mc_seed, parallel_process.get_last_lvl_branch_comm());
+    mc_engine =  MC (n_points, stripes.box, mc_seed, parallel_process.get_last_lvl_branch_comm(), delta);
     check_boundary = CheckBoundary (surface_ptr, &mc_engine , &dynamic_box, point_density);
 //    if(myRank == 0)
 //    {
@@ -201,12 +211,13 @@ void ManagerSphericalCaps::setup_input_variables()
     input_variables.theta_bad = theta_bad;
     input_variables.delta = delta;
     input_variables.Rho = Rho;
+    input_variables.n_max_points = n_max_points;
 }
 
 void ManagerSphericalCaps::setup_evolve_spherical_caps()
 {
     
-    evolve_spherical_cap = EvolveSphericalCap(&parallel_process, stripes, &output_variables, &input_variables , &check_boundary, &mc_engine, num_patches, &periodic_io);
+    evolve_spherical_cap = EvolveSphericalCap(&parallel_process, stripes, &output_variables, &input_variables , &check_boundary, &mc_engine, num_patches, &periodic_io, starting_patch_is_bad);
     //evolve_spherical_cap.print_initial_variables();
 }
 
@@ -214,21 +225,34 @@ void ManagerSphericalCaps::setup_periodic_io()
 {
 //    tag.assign(tag_c_str);
     
-    
-    printf("tag_length =%d tag=%s for myRank=%d\n", tag_length, tag.c_str(), myRank);
-    
     periodic_io = PeriodicIO(&parallel_process, &output_variables, tag, num_patches);
 }
 
 //evolve
-int ManagerSphericalCaps::evolve()
+int ManagerSphericalCaps::evolve(int is_constant_modifier_run)
 {
-   return evolve_spherical_cap.evolve();
+    if(is_constant_modifier_run == 1)
+    {
+        return evolve_spherical_cap.evolve_constant_modifiers();
+    }
+    else
+    {
+       return evolve_spherical_cap.evolve();
+    }
+   
 }
 
-int ManagerSphericalCaps::evolve_profiling()
+int ManagerSphericalCaps::evolve_profiling(int is_constant_modifier_run)
 {
-    return evolve_spherical_cap.evolve_profiling();
+    if(is_constant_modifier_run == 1)
+    {
+        return evolve_spherical_cap.evolve_profiling_constant_modifiers();
+    }
+    else
+    {
+        return evolve_spherical_cap.evolve_profiling();
+    }
+    
 }
 
 void ManagerSphericalCaps::dummy_evolve(int n_loops)

@@ -41,6 +41,7 @@ struct SphericalCapInput
     double theta_bad;
     double delta;
     double Rho;
+    int n_max_points;
 };
 
 class PeriodicIO

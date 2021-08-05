@@ -17,13 +17,14 @@ class Surface {
 public:
     Surface();
     Surface(std::vector<Patch>&, std::vector<std::vector<double> >&);
-    ~Surface();
+    virtual ~Surface();
     //virtual void evolve_cluster();                  //Grows cluster starting at the central good patch
     //virtual int valid_point (std::vector<double>&) = 0;  //A valid point above the surface
     
-    
+    virtual bool surface_bounds_breach (Shape*) {return false;}
     virtual std::vector<int> monitor_cluster_spread(Shape*){std::vector<int> zero_vec(1,-1); return zero_vec;}
     virtual void calc_box(double){};
+    void update_box(std::vector<std::vector<double> > new_box){box = new_box;};
     std::vector<std::vector<double> > box;
     
     std::vector<Patch> Patches;   //List of all patches. [0]:central patch, [1]:left bad patch, [2]:right bad patch

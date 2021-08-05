@@ -177,7 +177,7 @@ int PeriodicIO::print_per_root_rank_to_file()
     if(V_SA_DataFile_per_root_rank != NULL)
     {
         
-        printf("print rank=%d\n", myRank);
+        //printf("print rank=%d\n", myRank);
         add_Volume_SA_parallel (output_variables->Number_particles_global_array, output_variables->radii_global_array, output_variables->Volume_global_array, output_variables->SA_global_array, output_variables->projected_SA_global_array, output_variables->clstr_centre_location_modifier_global_array, num_patches, V_SA_DataFile_per_root_rank );
         
         return 1;
@@ -228,8 +228,8 @@ void PeriodicIO::get_fileName()
     if(parallel_process->is_parent())
     {
         V_SA_DataFileName.assign(tag + "_V_SA_data.txt");
-        std::cout<<"tag = "<<tag<<std::endl;
-        std::cout<<"V_SA_DataFileName = "<<V_SA_DataFileName<<std::endl;
+//        std::cout<<"tag = "<<tag<<std::endl;
+//        std::cout<<"V_SA_DataFileName = "<<V_SA_DataFileName<<std::endl;
     }
 }
 
@@ -238,8 +238,8 @@ void PeriodicIO::get_fileName_per_root_rank()
     char rank_char[256];
     sprintf(rank_char, "%d", myRank);
     V_SA_DataFileName_per_root_rank.assign(tag + "_V_SA_data_rank_" + rank_char + ".txt");
-    std::cout<<"tag = "<<tag<<std::endl;
-    std::cout<<"V_SA_DataFileName_per_root_rank = "<<V_SA_DataFileName_per_root_rank<<std::endl;
+//    std::cout<<"tag = "<<tag<<std::endl;
+//    std::cout<<"V_SA_DataFileName_per_root_rank = "<<V_SA_DataFileName_per_root_rank<<std::endl;
 }
 
 void PeriodicIO::get_profiling_fileName_per_root_rank()
@@ -247,8 +247,8 @@ void PeriodicIO::get_profiling_fileName_per_root_rank()
     char rank_char[256];
     sprintf(rank_char, "%d", myRank);
     profiling_FileName_per_root_rank.assign(tag + "_profiling_rank_" + rank_char + ".txt");
-    std::cout<<"tag = "<<tag<<std::endl;
-    std::cout<<"profiling_FileName_per_root_rank = "<<profiling_FileName_per_root_rank<<std::endl;
+//    std::cout<<"tag = "<<tag<<std::endl;
+//    std::cout<<"profiling_FileName_per_root_rank = "<<profiling_FileName_per_root_rank<<std::endl;
     
 }
 

@@ -25,6 +25,8 @@ void subtract_vectors(std::vector<double>&, std::vector<double>&, std::vector<do
 std::vector<double> add_vectors (std::vector<double>&, std::vector<double>&);
 double vector_norm (std::vector<double>&);
 
+
+
 void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, int db, int dg_secondary, double volume, double SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
 
 void add_to_N_spherocylinder (double N, double G, double Rg, double cyl_length, double chord_length, double Rb, int dB, double volume, double SA, std::vector<double> proj_SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant);
@@ -72,4 +74,8 @@ void print_points_tofile(std::vector<std::vector<double> >, FILE*);
 
 
 std::vector<int> getLoopStartEnd (int length, int level_color);
+
+bool compare_vector_elements_to_value (std::vector<int>::iterator, std::vector<int>::iterator, int);
+
+
 #endif /* miscformulas_hpp */

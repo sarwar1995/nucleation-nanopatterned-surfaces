@@ -192,6 +192,9 @@ double vector_norm (std::vector<double>& a)
 //
 //}
 
+
+
+
 void add_to_N (double N, double G, double Rg, double Rb, double Rg_secondary, int db, int dg_secondary, double volume, double SA, double dN, double Nmin, int lenN, std::vector<double>& NArray_Gmin, std::vector<double>& NArray_confs, std::vector<std::vector<double> >& NArray_quant)
 {
     double rNhere = round_nearN (N , dN);   //This rounds to nearest N.
@@ -289,6 +292,7 @@ void print_NGDataFile_spherocylinder (std::vector<std::vector<double> >& NArray_
 
 void addQuant(std::vector<double> &destination, std::vector<double> &origin, int size_origin)
 {
+    
     for(size_t i=0; i<size_origin; i++)
     {
         destination.push_back(origin[i]);
@@ -315,44 +319,20 @@ std::vector<double> add_double_vectors (std::vector<double>& a, std::vector<doub
     return result;
 }
 
-std::vector<int> getLoopStartEnd (int length, int level_color)
+
+
+
+
+
+bool compare_vector_elements_to_value (std::vector<int>::iterator begin, std::vector<int>::iterator end, int value)
 {
-    //Here I am using branch size as 2 because we are dividing into two branches at each level so making a binary division at each node.
-    std::vector<int> loop_end_points (2);
-    int start, end;
-    int branch_rank;
-    int branch_size = 2;
-    int chunk_per_process = (int)(length/branch_size) ;
-    
-    if (level_color % 2 == 0)
+    std::vector<int>::iterator it;
+    for(it=begin; it!=end; it++)
     {
-        branch_rank = 0;
-    }
-    else {branch_rank = 1;}
-    
-    if(length % branch_size != 0)
-    {
-        int extra_points = length % branch_size;
-        //Adding the remaining extra points to the last branch rank
-        if(branch_rank == branch_size - 1)
+        if (*it != value)
         {
-            start = branch_rank*chunk_per_process;
-            end = (branch_rank+1)*chunk_per_process - 1;
-            end = end + extra_points ;
-        }
-        else
-        {
-            start = branch_rank*chunk_per_process;
-            end = (branch_rank+1)*chunk_per_process - 1;
+            return false;
         }
     }
-    else
-    {
-        start = branch_rank*chunk_per_process;
-        end = (branch_rank+1)*chunk_per_process - 1;
-        
-    }
-    loop_end_points[0] = start;
-    loop_end_points[1] = end;
-    return loop_end_points;
+    return true;
 }

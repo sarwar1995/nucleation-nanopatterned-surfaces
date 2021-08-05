@@ -22,8 +22,13 @@ Stripes::Stripes(std::vector<Patch>& list_of_patches, std::vector<std::vector<do
     {
         throw std::invalid_argument( "zeroth patch in list is not at origin" );
     }
-    
     z_wall = z;
+    num_patches = (int)list_of_patches.size();
+    n_surrounding_patches = num_patches -  1 ;
+    n_patches_per_side_of_good = (n_surrounding_patches/2) ;
+    n_unique_patches = n_patches_per_side_of_good + 1;
+    
+    bounds_crossed.resize(num_patches, 0);
 }
 
 Stripes::~Stripes()
@@ -44,7 +49,30 @@ Stripes::~Stripes()
 //    }
 //}
 
-//Currently for 3 stripes, 1 good centre and 2 bad adjacent
+void Stripes::initial_box(double initial_box_dim)
+{
+    std::vector<double> central_patch_centre = central_patch.get_patch_centre(); //This will be origin in most cases.
+    double centre_x = central_patch_centre[0];
+    double centre_y = central_patch_centre[1];
+    if(box.empty())
+    {
+        box.resize(3);
+        for(size_t i=0; i<3; i++)
+        {
+            box[i].resize(2);
+        }
+        box[0][0] = centre_x - (initial_box_dim/2.0);
+        box[0][1] = centre_x + (initial_box_dim/2.0);
+        box[1][0] = centre_y - (initial_box_dim/2.0);
+        box[1][1] = centre_y + (initial_box_dim/2.0);
+        box[2][0] = z_wall;
+        box[2][1] = initial_box_dim;
+    }
+    else
+    {
+        throw "Box is not empty before initial box has been calculated in Stripes\n" ;
+    }
+}
 
 void Stripes::calc_box(double box_z){
     box.resize(3);
@@ -93,8 +121,8 @@ std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
     0:if not
      */
     /* 0: central patch, 1: left bad, 2:right bad, 3: left left good, 4: right right good and so on...*/
-    std::vector<int> bounds_crossed (Patches.size(), 0);
     std::vector<double> shape_xy_spread = cluster->xy_spread();
+//    printf("Cluster xy spread = [%10.5f %10.5f][%10.5f %10.5f]\n", shape_xy_spread[0], shape_xy_spread[1], shape_xy_spread[2], shape_xy_spread[3]);
     
     //check central patch bound
     std::vector<double> cPatchBounds = central_patch.patch_boundaries();
@@ -146,8 +174,36 @@ std::vector<int> Stripes::monitor_cluster_spread(Shape* cluster)
         }
         
     }
-    
     return bounds_crossed;
+}
+
+
+bool Stripes::is_bounds_crossed(int unique_patch_id)
+{
+    int symmetric_left_patch = 2*unique_patch_id - 1;
+    int symmetric_right_patch = symmetric_left_patch + 1;
+    if(bounds_crossed[symmetric_left_patch] != bounds_crossed[symmetric_right_patch])
+    {
+        throw "bounds being crossed assymmetrically\n";
+    }
+    else if(bounds_crossed[symmetric_left_patch] == 1 && bounds_crossed[symmetric_right_patch] == 1 )
+    { return true; }
+    else {return false;}
+}
+
+bool Stripes::surface_bounds_breach (Shape* cluster)
+{
+    bounds_crossed = monitor_cluster_spread(cluster);
+    if(Patches.size()>2)
+    {
+        if (bounds_crossed[(int) Patches.size() - 1] !=  bounds_crossed[(int) Patches.size() - 2])
+        {printf ("bouds crossed calculation within surface bounds breached is not symmetric\n"); abort();}
+        else if(bounds_crossed[(int) Patches.size() - 1] == 1 &&  bounds_crossed[(int) Patches.size() - 2] == 1)
+        {return true;}
+        else
+        {return false;}
+    }
+    return true;
 }
 
 std::vector<int> Stripes::monitor_box_breach(Shape* cluster)
@@ -162,4 +218,15 @@ std::vector<int> Stripes::monitor_box_breach(Shape* cluster)
     if (cluster_threeDim_spread[3] > box[1][1]){ box_breach[3] = 1 ;}
     if (cluster_threeDim_spread[4] > box[2][1]){ box_breach[4] = 1 ;}
     return box_breach;
+}
+
+
+void Stripes::print_all_patch_bounds()
+{
+    std::vector<double> patch_bounds;
+    for(size_t i=0; i<Patches.size() ; i++)
+    {
+        patch_bounds = Patches[i].patch_boundaries();
+        printf("%zu th patch bounds = [%10.3f %10.3f][%10.3f %10.3f]\n", i, patch_bounds[0], patch_bounds[1], patch_bounds[2], patch_bounds[3]);
+    }
 }

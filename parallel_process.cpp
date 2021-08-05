@@ -169,7 +169,11 @@ std::vector<int> ParallelProcess::getLoopStartEnd_balanced_binary_split (int len
     int branch_rank;
     int branch_size = 2;
     int chunk_per_processes_group = (int)(length/branch_size) ;
-    
+    if(chunk_per_processes_group < 0)
+    {
+        printf("chunk_per_processes_group is negative\n");
+        abort();
+    }
     if (level_color % 2 == 0)
     {
         branch_rank = 0;

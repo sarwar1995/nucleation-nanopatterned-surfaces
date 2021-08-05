@@ -46,10 +46,14 @@ public:
     MPI_Comm get_last_lvl_branch_comm (){return branch_comm_levels[last_level];}
     
     int get_last_lvl_roots_size() {return level_root_size[last_level];}
+    int get_current_lvl_roots_size(int level) {return level_root_size[level];}
+    int get_this_lvl_branch_rank(int level) {return level_branch_rank[level];}
     
     MPI_Comm get_last_lvl_roots_comm() {return root_comm_levels[last_level];}
     
     MPI_Comm get_this_lvl_branch_comm(int level) {return branch_comm_levels[level];}
+    
+    MPI_Comm get_this_lvl_roots_comm(int level) {return root_comm_levels[level];}
     
     
     //loop splitting for Load balancing
